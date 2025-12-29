@@ -1,0 +1,2066 @@
+<!doctype html>
+<html lang="en" class="h-full">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Meal Planner</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    .button-hover {
+      transition: opacity 0.2s;
+    }
+
+    .button-hover:hover {
+      opacity: 0.8;
+    }
+
+    .card-hover {
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    .card-hover:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }
+
+    .app-title {
+      text-shadow: 2px 2px 4px rgba(0,0,0,0.1);
+    }
+
+    .loading-spinner {
+      border: 3px solid rgba(255,255,255,0.3);
+      border-top: 3px solid white;
+      border-radius: 50%;
+      width: 24px;
+      height: 24px;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    @view-transition {
+      navigation: auto;
+    }
+
+    /* Mobile optimizations */
+    @media (max-width: 768px) {
+      .mobile-stack {
+        flex-direction: column;
+      }
+      
+      .mobile-full {
+        width: 100%;
+      }
+    }
+
+    /* Toast notifications */
+    .toast {
+      animation: slideIn 0.3s ease-out;
+    }
+
+    @keyframes slideIn {
+      from {
+        transform: translateX(100%);
+        opacity: 0;
+      }
+      to {
+        transform: translateX(0);
+        opacity: 1;
+      }
+    }
+
+    /* Keyboard navigation hint */
+    .kbd {
+      background: rgba(255,255,255,0.1);
+      border: 1px solid rgba(255,255,255,0.2);
+      border-radius: 3px;
+      padding: 2px 6px;
+      font-family: monospace;
+      font-size: 0.85em;
+    }
+  </style>
+</head>
+<body class="h-full">
+  <div id="app" class="h-full w-full overflow-auto"></div>
+
+  <!-- Export/Import Modal -->
+  <div id="modal" style="display: none;" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+    <div id="modal-content" class="bg-white rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[80vh] overflow-auto"></div>
+  </div>
+
+  <script>
+    // ===== CONFIG & STATE =====
+    const CONFIG = {
+      background_color: "#1a1a2e",
+      surface_color: "#16213e",
+      text_color: "#eaeaea",
+      primary_action_color: "#0f3460",
+      secondary_action_color: "#533483",
+      font_family: "sans-serif",
+      font_size: 16,
+      app_title: "Meal Planner",
+      recipes_label: "My Recipes",
+      weekly_plan_label: "Weekly Plan",
+      grocery_list_label: "Grocery List"
+    };
+
+    const ING_GROUPS = ['Produce', 'Meat', 'Seafood', 'Dairy', 'Pantry', 'Frozen', 'Bakery', 'Other'];
+    const MEAL_CATEGORIES = ['Breakfast', 'Lunch', 'Dinner', 'Appetizer'];
+    const SOURCE_TYPES = ['user', 'chefiq'];
+    const STORAGE_KEY = 'meal_planner_data_v1';
+
+    // State
+    const state = {
+      recipes: [],
+      planData: [],
+      mealSelections: [],
+      groceryItems: [],
+      currentView: 'home',
+      recipeForm: null,
+      selectedDayForRecipe: null,
+      selectedMealForRecipe: null,
+      selectedCategory: 'All',
+      searchTerm: '',
+      filterFavorites: false,
+      filterSourceType: 'all', // 'all', 'user', 'chefiq'
+      showDrafts: false,
+      selectedGroceryDate: null,
+      selectedGroceryMeal: null,
+      selectedGroceryRecipeId: null,
+      currentWeekStartDate: getMonday(new Date()).toISOString().split('T')[0],
+      isLoading: false,
+      selectedRecipeViewId: null
+    };
+
+    // ===== STORAGE SDK =====
+    const storage = {
+      load() {
+        try {
+          return JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
+        } catch {
+          return [];
+        }
+      },
+
+      save(data) {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+      },
+
+      _data: [],
+      _handler: null,
+
+      async init(handler) {
+        this._data = this.load();
+        this._handler = handler;
+        handler.onDataChanged(this._data);
+        return { isOk: true };
+      },
+
+      async create(item) {
+        this._data.push(item);
+        this.save(this._data);
+        this._handler?.onDataChanged(this._data);
+        return { isOk: true };
+      },
+
+      async update(item) {
+        const idx = this._data.findIndex(d => d.id === item.id);
+        if (idx !== -1) this._data[idx] = item;
+        this.save(this._data);
+        this._handler?.onDataChanged(this._data);
+        return { isOk: true };
+      },
+
+      async delete(item) {
+        this._data = this._data.filter(d => d.id !== item.id);
+        this.save(this._data);
+        this._handler?.onDataChanged(this._data);
+        return { isOk: true };
+      }
+    };
+
+    // ===== UTILITIES =====
+    function esc(s) {
+      return String(s || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    function getMonday(date) {
+      const d = new Date(date);
+      const day = d.getDay();
+      const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+      return new Date(d.setDate(diff));
+    }
+
+    function getWeekDates(startDate) {
+      const dates = [];
+      const start = new Date(startDate);
+      for (let i = 0; i < 7; i++) {
+        const date = new Date(start);
+        date.setDate(start.getDate() + i);
+        dates.push(date.toISOString().split('T')[0]);
+      }
+      return dates;
+    }
+
+    function formatDateDisplay(dateStr) {
+      const date = new Date(dateStr + 'T00:00:00');
+      return date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+    }
+
+    function normalizeIngredient(name) {
+      return name.toLowerCase().trim().replace(/[^a-z0-9]/g, '');
+    }
+
+    function showError(message) {
+      showToast(message, 'error');
+    }
+
+    function showToast(message, type = 'info') {
+      const toast = document.createElement('div');
+      toast.className = 'toast fixed top-4 right-4 px-4 py-3 rounded shadow-lg z-50';
+      
+      if (type === 'error') {
+        toast.style.background = '#dc2626';
+        toast.style.color = 'white';
+      } else if (type === 'success') {
+        toast.style.background = '#16a34a';
+        toast.style.color = 'white';
+      } else {
+        toast.style.background = CONFIG.primary_action_color;
+        toast.style.color = CONFIG.text_color;
+      }
+      
+      toast.textContent = message;
+      document.body.appendChild(toast);
+      setTimeout(() => toast.remove(), 3000);
+    }
+
+    // ===== MODAL UTILITIES =====
+    function openModal(content) {
+      const modal = document.getElementById('modal');
+      const modalContent = document.getElementById('modal-content');
+      modalContent.innerHTML = content;
+      modal.style.display = 'flex';
+    }
+
+    function closeModal() {
+      const modal = document.getElementById('modal');
+      modal.style.display = 'none';
+    }
+
+    // Click outside to close
+    document.addEventListener('click', (e) => {
+      const modal = document.getElementById('modal');
+      if (e.target === modal) {
+        closeModal();
+      }
+    });
+
+    // ===== EXPORT/IMPORT =====
+    function exportData() {
+      const data = storage.load();
+      const dataStr = JSON.stringify(data, null, 2);
+      const dataBlob = new Blob([dataStr], { type: 'application/json' });
+      const url = URL.createObjectURL(dataBlob);
+      
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `meal-planner-backup-${new Date().toISOString().split('T')[0]}.json`;
+      link.click();
+      
+      URL.revokeObjectURL(url);
+      showToast('Data exported successfully!', 'success');
+    }
+
+    function showImportModal() {
+      openModal(`
+        <div style="color: #1a1a2e;">
+          <h2 class="text-2xl font-bold mb-4">Import Data</h2>
+          <p class="mb-4">Upload a previously exported JSON file to restore your data.</p>
+          <p class="mb-4 text-red-600 font-semibold">⚠️ Warning: This will replace all current data!</p>
+          
+          <input type="file" id="importFile" accept=".json" class="mb-4 w-full p-2 border rounded">
+          
+          <div class="flex gap-2 justify-end">
+            <button onclick="closeModal()" class="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400">
+              Cancel
+            </button>
+            <button onclick="importData()" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
+              Import
+            </button>
+          </div>
+        </div>
+      `);
+    }
+
+    function importData() {
+      const fileInput = document.getElementById('importFile');
+      const file = fileInput.files[0];
+      
+      if (!file) {
+        showError('Please select a file to import');
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const data = JSON.parse(e.target.result);
+          
+          if (!Array.isArray(data)) {
+            showError('Invalid data format');
+            return;
+          }
+
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+          storage._data = data;
+          dataHandler.onDataChanged(data);
+          
+          closeModal();
+          showToast('Data imported successfully!', 'success');
+          navigateTo('home');
+        } catch (err) {
+          showError('Failed to import data: Invalid JSON file');
+          console.error(err);
+        }
+      };
+      
+      reader.readAsText(file);
+    }
+
+    function showClearDataModal() {
+      openModal(`
+        <div style="color: #1a1a2e;">
+          <h2 class="text-2xl font-bold mb-4">Clear All Data</h2>
+          <p class="mb-4 text-red-600 font-semibold">⚠️ Warning: This will permanently delete all your recipes, meal plans, and grocery lists!</p>
+          <p class="mb-4">This action cannot be undone. Consider exporting your data first.</p>
+          
+          <div class="flex gap-2 justify-end">
+            <button onclick="closeModal()" class="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400">
+              Cancel
+            </button>
+            <button onclick="clearAllData()" class="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700">
+              Clear All Data
+            </button>
+          </div>
+        </div>
+      `);
+    }
+
+    function clearAllData() {
+      localStorage.removeItem(STORAGE_KEY);
+      storage._data = [];
+      dataHandler.onDataChanged([]);
+      closeModal();
+      showToast('All data cleared', 'success');
+      navigateTo('home');
+    }
+
+    // ===== KEYBOARD SHORTCUTS =====
+    function setupKeyboardShortcuts() {
+      document.addEventListener('keydown', (e) => {
+        // Ignore if typing in input/textarea
+        if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+
+        // Ctrl/Cmd + E: Export data
+        if ((e.ctrlKey || e.metaKey) && e.key === 'e') {
+          e.preventDefault();
+          exportData();
+        }
+
+        // Ctrl/Cmd + I: Import data
+        if ((e.ctrlKey || e.metaKey) && e.key === 'i') {
+          e.preventDefault();
+          showImportModal();
+        }
+
+        // Escape: Close modal or go back
+        if (e.key === 'Escape') {
+          const modal = document.getElementById('modal');
+          if (modal.style.display === 'flex') {
+            closeModal();
+          } else if (state.currentView !== 'home') {
+            navigateTo('home');
+          }
+        }
+
+        // H: Go home
+        if (e.key === 'h' && state.currentView !== 'home') {
+          navigateTo('home');
+        }
+
+        // R: Go to recipes
+        if (e.key === 'r' && state.currentView !== 'recipes') {
+          navigateTo('recipes');
+        }
+
+        // W: Go to weekly plan
+        if (e.key === 'w' && state.currentView !== 'weekly-plan') {
+          navigateTo('weekly-plan');
+        }
+
+        // G: Go to grocery list
+        if (e.key === 'g' && state.currentView !== 'grocery-list') {
+          navigateTo('grocery-list');
+        }
+
+        // N: New recipe (when on recipes page)
+        if (e.key === 'n' && state.currentView === 'recipes') {
+          openNewRecipe();
+        }
+
+        // Arrow keys for week navigation
+        if (state.currentView === 'weekly-plan') {
+          if (e.key === 'ArrowLeft') {
+            changeWeek(-1);
+          } else if (e.key === 'ArrowRight') {
+            changeWeek(1);
+          }
+        }
+      });
+    }
+
+    // ===== RECIPE HELPERS =====
+    function getRecipeById(id) {
+      return state.recipes.find(r => r.__backendId === id || r.id === id);
+    }
+
+    function recipeThumb(r) {
+      const u = (r?.image_url || '').trim();
+      return u ? u : '';
+    }
+
+    function recipeIngList(r) {
+      if (!r) return [];
+      if (Array.isArray(r.ingredientsRows) && r.ingredientsRows.length) {
+        return r.ingredientsRows
+          .map(x => ({
+            qty: (x.qty || '').trim(),
+            unit: (x.unit || '').trim(),
+            name: (x.name || '').trim(),
+            group: x.group || 'Other'
+          }))
+          .filter(x => x.name);
+      }
+      return [];
+    }
+
+    function newRecipeDraft() {
+      return {
+        type: 'recipe',
+        title: '',
+        category: 'Breakfast',
+        recipe_url: '',
+        image_url: '',
+        tags: '',
+        notes: '',
+        instructions: '',
+        ingredientsRows: [{ qty: '', unit: '', name: '', group: 'Produce' }],
+        sourceType: 'chefiq',
+        isDraft: false
+      };
+    }
+
+    function ensureRecipeForm() {
+      if (!state.recipeForm) state.recipeForm = newRecipeDraft();
+      if (!Array.isArray(state.recipeForm.ingredientsRows)) state.recipeForm.ingredientsRows = [];
+      if (state.recipeForm.ingredientsRows.length === 0) {
+        state.recipeForm.ingredientsRows.push({ qty: '', unit: '', name: '', group: 'Produce' });
+      }
+    }
+
+    // ===== RECIPE ACTIONS =====
+    function setRecipeField(field, value) {
+      ensureRecipeForm();
+      state.recipeForm[field] = value;
+    }
+
+    function handleImageUpload(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      // Check file size (max 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        showError('Image size must be less than 5MB');
+        event.target.value = '';
+        return;
+      }
+
+      // Check file type
+      if (!file.type.startsWith('image/')) {
+        showError('Please select an image file');
+        event.target.value = '';
+        return;
+      }
+
+      // Convert to base64
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        setRecipeField('image_url', e.target.result);
+        render();
+        showToast('Image uploaded successfully!', 'success');
+      };
+      reader.onerror = () => {
+        showError('Failed to read image file');
+        event.target.value = '';
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function removeImage() {
+      setRecipeField('image_url', '');
+      // Clear file input if exists
+      const fileInput = document.getElementById('imageUploadInput');
+      if (fileInput) fileInput.value = '';
+      render();
+    }
+
+    function addIngRow() {
+      ensureRecipeForm();
+      state.recipeForm.ingredientsRows.push({ qty: '', unit: '', name: '', group: 'Produce' });
+      render();
+    }
+
+    function delIngRow(i) {
+      ensureRecipeForm();
+      state.recipeForm.ingredientsRows.splice(i, 1);
+      if (state.recipeForm.ingredientsRows.length === 0) addIngRow();
+      render();
+    }
+
+    function setIng(i, field, value) {
+      ensureRecipeForm();
+      state.recipeForm.ingredientsRows[i][field] = value;
+    }
+
+    function openNewRecipe() {
+      state.recipeForm = newRecipeDraft();
+      state.recipeForm.isDraft = false;
+      state.currentView = 'recipe-edit';
+      render();
+    }
+
+    function openNewDraft() {
+      state.recipeForm = newRecipeDraft();
+      state.recipeForm.isDraft = true;
+      state.currentView = 'recipe-edit';
+      render();
+    }
+
+    function openEditRecipe(recipeId) {
+      const r = getRecipeById(recipeId);
+      if (!r) return;
+
+      const rows = Array.isArray(r.ingredientsRows) ? r.ingredientsRows : [];
+      state.recipeForm = {
+        ...newRecipeDraft(),
+        ...r,
+        ingredientsRows: rows.length ? rows : [{ qty: '', unit: '', name: '', group: 'Produce' }]
+      };
+
+      state.currentView = 'recipe-edit';
+      render();
+    }
+
+    function closeRecipeEditor() {
+      state.recipeForm = null;
+      state.currentView = 'recipes';
+      render();
+    }
+
+    function openRecipeView(id) {
+      state.selectedRecipeViewId = id;
+      state.currentView = 'recipe-view';
+      render();
+    }
+
+    async function saveRecipeForm() {
+      ensureRecipeForm();
+
+      const title = (state.recipeForm.title || '').trim();
+      const cat = (state.recipeForm.category || '').trim();
+      const url = (state.recipeForm.recipe_url || '').trim();
+
+      if (!title) return showError('Recipe Title is required.');
+      if (!cat) return showError('Category is required.');
+      if (!url) return showError('Recipe URL is required.');
+
+      const rows = (state.recipeForm.ingredientsRows || [])
+        .map(r => ({
+          qty: (r.qty || '').trim(),
+          unit: (r.unit || '').trim(),
+          name: (r.name || '').trim(),
+          group: r.group || 'Other'
+        }))
+        .filter(r => r.name);
+
+      if (!rows.length) return showError('Add at least 1 ingredient.');
+
+      const payload = {
+        ...state.recipeForm,
+        title,
+        category: cat,
+        recipe_url: url,
+        image_url: (state.recipeForm.image_url || '').trim(),
+        tags: (state.recipeForm.tags || '').trim(),
+        notes: (state.recipeForm.notes || '').trim(),
+        instructions: (state.recipeForm.instructions || '').trim(),
+        ingredientsRows: rows,
+        sourceType: state.recipeForm.sourceType || 'user',
+        isDraft: state.recipeForm.isDraft || false
+      };
+
+      try {
+        if (payload.id) {
+          await storage.update(payload);
+        } else {
+          payload.id = `recipe_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+          await storage.create(payload);
+        }
+        showToast(payload.isDraft ? 'Draft saved!' : 'Recipe saved!', 'success');
+        closeRecipeEditor();
+      } catch (e) {
+        console.error(e);
+        showError('Failed to save recipe.');
+      }
+    }
+
+    async function publishDraft(recipeId) {
+      const recipe = getRecipeById(recipeId);
+      if (!recipe) return;
+
+      const updatedRecipe = { ...recipe, isDraft: false };
+      
+      try {
+        await storage.update(updatedRecipe);
+        showToast('Draft published!', 'success');
+      } catch (e) {
+        console.error(e);
+        showError('Failed to publish draft.');
+      }
+    }
+
+    async function deleteRecipe(recipe) {
+      state.isLoading = true;
+      render();
+
+      const result = await storage.delete(recipe);
+      state.isLoading = false;
+
+      if (!result.isOk) {
+        showError('Failed to delete recipe');
+        render();
+      }
+    }
+
+    async function toggleFavorite(recipeId) {
+      const recipe = getRecipeById(recipeId);
+      if (!recipe) return;
+
+      state.isLoading = true;
+      render();
+
+      const updatedRecipe = { ...recipe, favorite: !recipe.favorite };
+      const result = await storage.update(updatedRecipe);
+      state.isLoading = false;
+
+      if (!result.isOk) {
+        showError('Failed to update favorite status');
+        render();
+      }
+    }
+
+    // ===== MEAL PLANNING =====
+    async function savePlan(date, meal, recipeId) {
+      const planId = `plan_${date}`;
+      let plan = state.planData.find(p => p.date === date);
+
+      state.isLoading = true;
+      render();
+
+      const mealKey = meal.toLowerCase();
+
+      try {
+        if (plan) {
+          const updatedPlan = { ...plan, [mealKey]: recipeId };
+          await storage.update(updatedPlan);
+        } else {
+          if (state.planData.length >= 999) {
+            showError('Maximum limit of 999 plans reached');
+            return;
+          }
+          const newPlan = {
+            id: planId,
+            date: date,
+            breakfast: mealKey === 'breakfast' ? recipeId : null,
+            lunch: mealKey === 'lunch' ? recipeId : null,
+            dinner: mealKey === 'dinner' ? recipeId : null
+          };
+          await storage.create(newPlan);
+        }
+      } finally {
+        state.isLoading = false;
+        render();
+      }
+    }
+
+    async function removeMealFromPlan(date, meal) {
+      const plan = state.planData.find(p => p.date === date);
+      if (!plan) return;
+
+      state.isLoading = true;
+      render();
+
+      const mealKey = meal.toLowerCase();
+      const updatedPlan = { ...plan, [mealKey]: null };
+      const result = await storage.update(updatedPlan);
+      state.isLoading = false;
+
+      if (!result.isOk) {
+        showError('Failed to remove meal');
+        render();
+      }
+    }
+
+    function openRecipePicker(date, meal) {
+      state.selectedDayForRecipe = date;
+      state.selectedMealForRecipe = meal;
+      state.currentView = 'recipe-picker';
+      render();
+    }
+
+    async function handleRecipePickerSelect(recipeId) {
+      await savePlan(state.selectedDayForRecipe, state.selectedMealForRecipe, recipeId);
+      state.selectedDayForRecipe = null;
+      state.selectedMealForRecipe = null;
+      state.currentView = 'weekly-plan';
+      render();
+    }
+
+    function changeWeek(direction) {
+      const date = new Date(state.currentWeekStartDate);
+      date.setDate(date.getDate() + (direction * 7));
+      state.currentWeekStartDate = date.toISOString().split('T')[0];
+      render();
+    }
+
+    // ===== GROCERY LIST =====
+    function getPlannedMealsForWeek(weekStart) {
+      const weekDates = getWeekDates(weekStart);
+      const meals = [];
+
+      weekDates.forEach(date => {
+        const plan = state.planData.find(p => p.date === date);
+        if (plan) {
+          ['breakfast', 'lunch', 'dinner'].forEach(mealType => {
+            if (plan[mealType]) {
+              const recipe = getRecipeById(plan[mealType]);
+              if (recipe) {
+                meals.push({
+                  date: date,
+                  meal: mealType.charAt(0).toUpperCase() + mealType.slice(1),
+                  recipeId: plan[mealType],
+                  recipeTitle: recipe.title
+                });
+              }
+            }
+          });
+        }
+      });
+
+      return meals;
+    }
+
+    function getGroceryList() {
+      const aggregated = {};
+
+      state.mealSelections.forEach(sel => {
+        const parts = sel.id.split('_');
+        const date = parts[1];
+        const meal = parts[2];
+        const plan = state.planData.find(p => p.date === date);
+        if (!plan) return;
+
+        const mealKey = (meal || '').toLowerCase();
+        const recipeId = plan[mealKey];
+        if (!recipeId) return;
+
+        const r = getRecipeById(recipeId);
+        if (!r) return;
+
+        let keys = [];
+        try {
+          keys = JSON.parse(sel.includedIngredientKeys || '[]');
+        } catch (e) {
+          keys = [];
+        }
+
+        recipeIngList(r).forEach(ing => {
+          const k = normalizeIngredient(ing.name);
+          if (!keys.includes(k)) return;
+
+          if (!aggregated[k]) {
+            aggregated[k] = {
+              name: ing.name,
+              quantity: ing.qty || '',
+              unit: ing.unit || '',
+              checked: false
+            };
+          }
+        });
+      });
+
+      Object.keys(aggregated).forEach(k => {
+        const gi = state.groceryItems.find(x => x.ingredientKey === k);
+        aggregated[k].checked = gi ? !!gi.checked : false;
+      });
+
+      return Object.values(aggregated);
+    }
+
+    function openGroceryIngredientPicker(date, meal, recipeId) {
+      state.selectedGroceryDate = date;
+      state.selectedGroceryMeal = meal;
+      state.selectedGroceryRecipeId = recipeId;
+
+      (async () => {
+        const selId = `mealSel_${date}_${meal}`;
+        let sel = state.mealSelections.find(s => s.id === selId);
+        if (!sel) {
+          const r = getRecipeById(recipeId);
+          const keys = recipeIngList(r).map(x => normalizeIngredient(x.name));
+          sel = {
+            id: selId,
+            mealDate: date,
+            meal: meal,
+            includedIngredientKeys: JSON.stringify(keys)
+          };
+          await storage.create(sel);
+          state.mealSelections.push(sel);
+        }
+        state.currentView = 'grocery-ingredients';
+        render();
+      })();
+    }
+
+    async function toggleMealIngredient(ingredientKey) {
+      const selId = `mealSel_${state.selectedGroceryDate}_${state.selectedGroceryMeal}`;
+      let sel = state.mealSelections.find(s => s.id === selId);
+
+      let includedKeys = [];
+      if (sel) {
+        try {
+          includedKeys = JSON.parse(sel.includedIngredientKeys || '[]');
+        } catch (e) {
+          includedKeys = [];
+        }
+      }
+
+      const index = includedKeys.indexOf(ingredientKey);
+      if (index > -1) {
+        includedKeys.splice(index, 1);
+      } else {
+        includedKeys.push(ingredientKey);
+      }
+
+      state.isLoading = true;
+      render();
+
+      try {
+        if (sel) {
+          const updatedSel = { ...sel, includedIngredientKeys: JSON.stringify(includedKeys) };
+          await storage.update(updatedSel);
+        } else {
+          if (state.mealSelections.length >= 999) {
+            showError('Maximum limit reached');
+            return;
+          }
+          const newSel = {
+            id: selId,
+            mealDate: state.selectedGroceryDate,
+            meal: state.selectedGroceryMeal,
+            includedIngredientKeys: JSON.stringify(includedKeys)
+          };
+          await storage.create(newSel);
+        }
+      } finally {
+        state.isLoading = false;
+        render();
+      }
+    }
+
+    async function toggleGroceryItem(ingredientKey) {
+      let item = state.groceryItems.find(gi => gi.ingredientKey === ingredientKey);
+
+      state.isLoading = true;
+      render();
+
+      try {
+        if (item) {
+          const updatedItem = { ...item, checked: !item.checked };
+          await storage.update(updatedItem);
+        } else {
+          if (state.groceryItems.length >= 999) {
+            showError('Maximum limit reached');
+            return;
+          }
+          const newItem = {
+            id: `grocery_${Date.now()}_${ingredientKey}`,
+            ingredientKey: ingredientKey,
+            checked: true
+          };
+          await storage.create(newItem);
+        }
+      } finally {
+        state.isLoading = false;
+        render();
+      }
+    }
+
+    // ===== DATA HANDLER =====
+    const dataHandler = {
+      onDataChanged(data) {
+        state.recipes = data.filter(d => d.id && d.id.startsWith('recipe_'));
+        state.planData = data.filter(d => d.date && d.id && d.id.startsWith('plan_'));
+        state.mealSelections = data.filter(d => d.id && d.id.startsWith('mealSel_'));
+        state.groceryItems = data.filter(d => d.ingredientKey);
+        render();
+      }
+    };
+
+    // ===== NAVIGATION =====
+    function navigateTo(view) {
+      state.currentView = view;
+      render();
+    }
+
+    // ===== RENDER FUNCTIONS =====
+    function renderNav() {
+      if (state.currentView === 'home') return '';
+
+      return `
+        <nav style="background: ${CONFIG.surface_color};" class="p-4 mb-0">
+          <div class="max-w-7xl mx-auto flex items-center justify-between mobile-stack gap-4">
+            <button type="button" onclick="navigateTo('home')"
+                    style="color: ${CONFIG.text_color}; font-size: ${CONFIG.font_size * 1.25}px; font-family: ${CONFIG.font_family}, sans-serif;"
+                    class="font-bold button-hover">
+              ${CONFIG.app_title}
+            </button>
+            <div class="flex gap-4 flex-wrap">
+              <button type="button" onclick="navigateTo('recipes')"
+                      style="color: ${CONFIG.text_color}; font-family: ${CONFIG.font_family}, sans-serif; font-size: ${CONFIG.font_size}px;"
+                      class="button-hover ${state.currentView.includes('recipe') ? 'font-bold' : ''}">
+                ${CONFIG.recipes_label}
+              </button>
+              <button type="button" onclick="navigateTo('weekly-plan')"
+                      style="color: ${CONFIG.text_color}; font-family: ${CONFIG.font_family}, sans-serif; font-size: ${CONFIG.font_size}px;"
+                      class="button-hover ${state.currentView === 'weekly-plan' ? 'font-bold' : ''}">
+                ${CONFIG.weekly_plan_label}
+              </button>
+              <button type="button" onclick="navigateTo('grocery-list')"
+                      style="color: ${CONFIG.text_color}; font-family: ${CONFIG.font_family}, sans-serif; font-size: ${CONFIG.font_size}px;"
+                      class="button-hover ${state.currentView.includes('grocery') ? 'font-bold' : ''}">
+                ${CONFIG.grocery_list_label}
+              </button>
+              <button type="button" onclick="showSettingsMenu()"
+                      style="color: ${CONFIG.text_color}; font-family: ${CONFIG.font_family}, sans-serif; font-size: ${CONFIG.font_size}px;"
+                      class="button-hover"
+                      title="Settings & Export/Import">
+                ⚙️
+              </button>
+            </div>
+          </div>
+        </nav>
+      `;
+    }
+
+    function showSettingsMenu() {
+      openModal(`
+        <div style="color: #1a1a2e;">
+          <h2 class="text-2xl font-bold mb-4">Settings & Data Management</h2>
+          
+          <div class="space-y-3">
+            <button onclick="exportData(); closeModal();" 
+                    class="w-full p-4 bg-blue-100 hover:bg-blue-200 rounded text-left">
+              <div class="font-semibold text-lg">📥 Export Data</div>
+              <div class="text-sm text-gray-600">Download a backup of all your data</div>
+              <div class="text-xs text-gray-500 mt-1">Keyboard: <span class="kbd">Ctrl+E</span></div>
+            </button>
+
+            <button onclick="closeModal(); showImportModal();" 
+                    class="w-full p-4 bg-green-100 hover:bg-green-200 rounded text-left">
+              <div class="font-semibold text-lg">📤 Import Data</div>
+              <div class="text-sm text-gray-600">Restore from a backup file</div>
+              <div class="text-xs text-gray-500 mt-1">Keyboard: <span class="kbd">Ctrl+I</span></div>
+            </button>
+
+            <button onclick="closeModal(); showKeyboardShortcuts();" 
+                    class="w-full p-4 bg-purple-100 hover:bg-purple-200 rounded text-left">
+              <div class="font-semibold text-lg">⌨️ Keyboard Shortcuts</div>
+              <div class="text-sm text-gray-600">View all available shortcuts</div>
+            </button>
+
+            <button onclick="closeModal(); showClearDataModal();" 
+                    class="w-full p-4 bg-red-100 hover:bg-red-200 rounded text-left">
+              <div class="font-semibold text-lg text-red-700">🗑️ Clear All Data</div>
+              <div class="text-sm text-red-600">Permanently delete everything</div>
+            </button>
+          </div>
+
+          <div class="mt-6 p-4 bg-gray-100 rounded">
+            <div class="text-sm text-gray-700">
+              <div class="font-semibold mb-2">📊 Current Data:</div>
+              <div>Recipes: ${state.recipes.length}</div>
+              <div>Meal Plans: ${state.planData.length}</div>
+              <div>Grocery Items: ${state.groceryItems.length}</div>
+            </div>
+          </div>
+
+          <div class="flex gap-2 justify-end mt-6">
+            <button onclick="closeModal()" class="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400">
+              Close
+            </button>
+          </div>
+        </div>
+      `);
+    }
+
+    function showKeyboardShortcuts() {
+      openModal(`
+        <div style="color: #1a1a2e;">
+          <h2 class="text-2xl font-bold mb-4">⌨️ Keyboard Shortcuts</h2>
+          
+          <div class="space-y-4">
+            <div>
+              <h3 class="font-semibold text-lg mb-2">Navigation</h3>
+              <div class="space-y-1 text-sm">
+                <div class="flex justify-between"><span>Go Home</span><span class="kbd">H</span></div>
+                <div class="flex justify-between"><span>Go to Recipes</span><span class="kbd">R</span></div>
+                <div class="flex justify-between"><span>Go to Weekly Plan</span><span class="kbd">W</span></div>
+                <div class="flex justify-between"><span>Go to Grocery List</span><span class="kbd">G</span></div>
+                <div class="flex justify-between"><span>Go Back / Close</span><span class="kbd">Esc</span></div>
+              </div>
+            </div>
+
+            <div>
+              <h3 class="font-semibold text-lg mb-2">Actions</h3>
+              <div class="space-y-1 text-sm">
+                <div class="flex justify-between"><span>New Recipe (on Recipes page)</span><span class="kbd">N</span></div>
+                <div class="flex justify-between"><span>Export Data</span><span class="kbd">Ctrl+E</span></div>
+                <div class="flex justify-between"><span>Import Data</span><span class="kbd">Ctrl+I</span></div>
+              </div>
+            </div>
+
+            <div>
+              <h3 class="font-semibold text-lg mb-2">Weekly Plan</h3>
+              <div class="space-y-1 text-sm">
+                <div class="flex justify-between"><span>Previous Week</span><span class="kbd">←</span></div>
+                <div class="flex justify-between"><span>Next Week</span><span class="kbd">→</span></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="flex gap-2 justify-end mt-6">
+            <button onclick="closeModal()" class="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400">
+              Close
+            </button>
+          </div>
+        </div>
+      `);
+    }
+
+    function renderHome() {
+      return `
+        <div class="p-6 max-w-6xl mx-auto">
+          <h1 style="color: ${CONFIG.text_color}; font-size: ${CONFIG.font_size * 2}px; font-family: ${CONFIG.font_family}, sans-serif;"
+              class="app-title mb-8 text-center">
+            ${CONFIG.app_title}
+          </h1>
+
+          <div class="grid md:grid-cols-3 gap-6">
+            <button type="button" onclick="navigateTo('recipes')"
+                    style="background: ${CONFIG.surface_color};"
+                    class="p-8 rounded-lg card-hover text-center">
+              <div style="font-size: 3rem;" class="mb-4">🍳</div>
+              <h3 style="color: ${CONFIG.text_color}; font-size: ${CONFIG.font_size * 1.25}px; font-family: ${CONFIG.font_family}, sans-serif;"
+                  class="font-bold mb-2">
+                ${CONFIG.recipes_label}
+              </h3>
+              <p style="color: ${CONFIG.text_color}; opacity: 0.7; font-size: ${CONFIG.font_size}px; font-family: ${CONFIG.font_family}, sans-serif;">
+                Browse and manage your recipe collection
+              </p>
+            </button>
+
+            <button type="button" onclick="navigateTo('weekly-plan')"
+                    style="background: ${CONFIG.surface_color};"
+                    class="p-8 rounded-lg card-hover text-center">
+              <div style="font-size: 3rem;" class="mb-4">📅</div>
+              <h3 style="color: ${CONFIG.text_color}; font-size: ${CONFIG.font_size * 1.25}px; font-family: ${CONFIG.font_family}, sans-serif;"
+                  class="font-bold mb-2">
+                ${CONFIG.weekly_plan_label}
+              </h3>
+              <p style="color: ${CONFIG.text_color}; opacity: 0.7; font-size: ${CONFIG.font_size}px; font-family: ${CONFIG.font_family}, sans-serif;">
+                Plan your meals for the week
+              </p>
+            </button>
+
+            <button type="button" onclick="navigateTo('grocery-list')"
+                    style="background: ${CONFIG.surface_color};"
+                    class="p-8 rounded-lg card-hover text-center">
+              <div style="font-size: 3rem;" class="mb-4">🛒</div>
+              <h3 style="color: ${CONFIG.text_color}; font-size: ${CONFIG.font_size * 1.25}px; font-family: ${CONFIG.font_family}, sans-serif;"
+                  class="font-bold mb-2">
+                ${CONFIG.grocery_list_label}
+              </h3>
+              <p style="color: ${CONFIG.text_color}; opacity: 0.7; font-size: ${CONFIG.font_size}px; font-family: ${CONFIG.font_family}, sans-serif;">
+                Generate shopping list from your plan
+              </p>
+            </button>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderRecipes() {
+      // Filter recipes based on draft status
+      let list = state.showDrafts 
+        ? state.recipes.filter(r => r.isDraft)
+        : state.recipes.filter(r => !r.isDraft);
+
+      // Apply other filters
+      list = list.filter(r => {
+        if (state.filterFavorites && !r.favorite) return false;
+        if (state.filterSourceType !== 'all' && r.sourceType !== state.filterSourceType) return false;
+        if (!state.showDrafts && state.selectedCategory !== 'All' && r.category !== state.selectedCategory) return false;
+        if (state.searchTerm && !(r.title || '').toLowerCase().includes(state.searchTerm.toLowerCase())) return false;
+        return true;
+      });
+
+      const draftCount = state.recipes.filter(r => r.isDraft).length;
+      const publishedCount = state.recipes.filter(r => !r.isDraft).length;
+
+      return `
+        <div class="p-6 max-w-7xl mx-auto">
+          <!-- Header -->
+          <div class="flex items-center justify-between mb-6 mobile-stack gap-3">
+            <div>
+              <h2 class="font-bold" style="color:${CONFIG.text_color}; font-size:${CONFIG.font_size * 1.5}px;">
+                ${CONFIG.recipes_label}
+              </h2>
+              <p style="color:${CONFIG.text_color}; opacity:0.7; font-size:${CONFIG.font_size * 0.9}px; margin-top:4px;">
+                ${publishedCount} published • ${draftCount} drafts
+              </p>
+            </div>
+            <div class="flex gap-2">
+              <button type="button" onclick="openNewDraft()"
+                class="px-4 py-2 rounded button-hover"
+                style="background:${CONFIG.secondary_action_color}; color:${CONFIG.text_color}; font-size:${CONFIG.font_size}px;">
+                💾 Save as Draft
+              </button>
+              <button type="button" onclick="openNewRecipe()"
+                class="px-4 py-2 rounded button-hover"
+                style="background:${CONFIG.primary_action_color}; color:${CONFIG.text_color}; font-size:${CONFIG.font_size}px;">
+                ➕ Add Recipe
+              </button>
+            </div>
+          </div>
+
+          <!-- Main Content Area -->
+          <div class="grid lg:grid-cols-[240px_1fr] gap-6">
+            <!-- Left Sidebar - Filters -->
+            <div class="space-y-4">
+              <!-- Published/Drafts Toggle -->
+              <div class="rounded p-4" style="background:${CONFIG.surface_color};">
+                <h3 class="font-semibold mb-3" style="color:${CONFIG.text_color}; font-size:${CONFIG.font_size * 1.1}px;">
+                  View
+                </h3>
+                <div class="space-y-2">
+                  <button type="button" 
+                    onclick="state.showDrafts = false; state.selectedCategory = 'All'; render();"
+                    class="w-full px-3 py-2 rounded text-left button-hover"
+                    style="background:${!state.showDrafts ? CONFIG.primary_action_color : 'rgba(255,255,255,0.05)'}; color:${CONFIG.text_color}; font-size:${CONFIG.font_size}px;">
+                    📚 Published (${publishedCount})
+                  </button>
+                  <button type="button" 
+                    onclick="state.showDrafts = true; state.selectedCategory = 'All'; render();"
+                    class="w-full px-3 py-2 rounded text-left button-hover"
+                    style="background:${state.showDrafts ? CONFIG.primary_action_color : 'rgba(255,255,255,0.05)'}; color:${CONFIG.text_color}; font-size:${CONFIG.font_size}px;">
+                    📝 Drafts (${draftCount})
+                  </button>
+                </div>
+              </div>
+
+              <!-- Category Filter (only for published) -->
+              ${!state.showDrafts ? `
+                <div class="rounded p-4" style="background:${CONFIG.surface_color};">
+                  <h3 class="font-semibold mb-3" style="color:${CONFIG.text_color}; font-size:${CONFIG.font_size * 1.1}px;">
+                    Category
+                  </h3>
+                  <div class="space-y-2">
+                    <button type="button" onclick="state.selectedCategory='All'; render();"
+                      class="w-full px-3 py-2 rounded text-left button-hover"
+                      style="background:${state.selectedCategory === 'All' ? CONFIG.primary_action_color : 'rgba(255,255,255,0.05)'}; color:${CONFIG.text_color}; font-size:${CONFIG.font_size}px;">
+                      📋 All Categories
+                    </button>
+                    ${MEAL_CATEGORIES.map(c => `
+                      <button type="button" onclick="state.selectedCategory='${c}'; render();"
+                        class="w-full px-3 py-2 rounded text-left button-hover"
+                        style="background:${state.selectedCategory === c ? CONFIG.primary_action_color : 'rgba(255,255,255,0.05)'}; color:${CONFIG.text_color}; font-size:${CONFIG.font_size}px;">
+                        ${c}
+                      </button>
+                    `).join('')}
+                  </div>
+                </div>
+              ` : ''}
+
+              <!-- Source Filter -->
+              <div class="rounded p-4" style="background:${CONFIG.surface_color};">
+                <h3 class="font-semibold mb-3" style="color:${CONFIG.text_color}; font-size:${CONFIG.font_size * 1.1}px;">
+                  Source
+                </h3>
+                <div class="space-y-2">
+                  <button type="button" onclick="state.filterSourceType='all'; render();"
+                    class="w-full px-3 py-2 rounded text-left button-hover"
+                    style="background:${state.filterSourceType === 'all' ? CONFIG.primary_action_color : 'rgba(255,255,255,0.05)'}; color:${CONFIG.text_color}; font-size:${CONFIG.font_size}px;">
+                    📋 All Sources
+                  </button>
+                  <button type="button" onclick="state.filterSourceType='chefiq'; render();"
+                    class="w-full px-3 py-2 rounded text-left button-hover"
+                    style="background:${state.filterSourceType === 'chefiq' ? CONFIG.primary_action_color : 'rgba(255,255,255,0.05)'}; color:${CONFIG.text_color}; font-size:${CONFIG.font_size}px;">
+                    🤖 ChefIQ Guided
+                  </button>
+                  <button type="button" onclick="state.filterSourceType='user'; render();"
+                    class="w-full px-3 py-2 rounded text-left button-hover"
+                    style="background:${state.filterSourceType === 'user' ? CONFIG.primary_action_color : 'rgba(255,255,255,0.05)'}; color:${CONFIG.text_color}; font-size:${CONFIG.font_size}px;">
+                    👤 User-Created
+                  </button>
+                </div>
+              </div>
+
+              <!-- Additional Filters -->
+              <div class="rounded p-4" style="background:${CONFIG.surface_color};">
+                <label class="flex items-center gap-2 cursor-pointer" style="color:${CONFIG.text_color}; font-size:${CONFIG.font_size}px;">
+                  <input type="checkbox" ${state.filterFavorites ? 'checked' : ''}
+                    onchange="state.filterFavorites=this.checked; render();">
+                  ⭐ Favorites Only
+                </label>
+              </div>
+            </div>
+
+            <!-- Right Content Area - Recipes -->
+            <div>
+              <!-- Search Bar -->
+              <div class="mb-4">
+                <input placeholder="🔍 Search recipes by name..."
+                  class="w-full px-4 py-3 rounded border"
+                  style="background:${CONFIG.surface_color}; color:${CONFIG.text_color}; border-color:${CONFIG.secondary_action_color}; font-size:${CONFIG.font_size}px;"
+                  value="${esc(state.searchTerm)}"
+                  oninput="state.searchTerm=this.value; render();"/>
+              </div>
+
+              <!-- Results -->
+              ${list.length === 0 ? `
+                <div class="p-12 rounded text-center" style="background:${CONFIG.surface_color}; color:${CONFIG.text_color};">
+                  <div style="font-size:3rem; margin-bottom:1rem;">📭</div>
+                  <div style="font-size:${CONFIG.font_size * 1.2}px; margin-bottom:0.5rem;">
+                    ${state.showDrafts ? 'No drafts found' : 'No recipes found'}
+                  </div>
+                  <div style="opacity:0.7; font-size:${CONFIG.font_size * 0.9}px;">
+                    ${state.searchTerm ? 'Try adjusting your search or filters' : state.showDrafts ? 'Start by saving a recipe as a draft' : 'Add your first recipe to get started'}
+                  </div>
+                </div>` : `
+                <div class="grid md:grid-cols-2 xl:grid-cols-3 gap-4">
+                  ${list.map(r => {
+                    const id = r.__backendId || r.id;
+                    const img = recipeThumb(r);
+                    const sourceIcon = r.sourceType === 'chefiq' ? '🤖' : '👤';
+                    return `
+                    <div class="rounded-lg overflow-hidden card-hover cursor-pointer"
+                      onclick="openRecipeView('${id}')"
+                      style="background:${CONFIG.surface_color}; border:1px solid rgba(255,255,255,0.08);">
+                      
+                      <!-- Image -->
+                      ${img ? `
+                        <div style="height:140px; overflow:hidden;">
+                          <img src="${esc(img)}" style="width:100%; height:100%; object-fit:cover;" />
+                        </div>
+                      ` : `
+                        <div style="height:140px; background:rgba(255,255,255,0.03); display:flex; align-items:center; justify-content:center; font-size:3rem;">
+                          🍽️
+                        </div>
+                      `}
+
+                      <!-- Content -->
+                      <div class="p-4">
+                        <div class="flex items-start justify-between gap-2 mb-2">
+                          <div class="flex-1">
+                            <div class="font-semibold" style="color:${CONFIG.text_color}; font-size:${CONFIG.font_size * 1.05}px; line-height:1.3;">
+                              ${esc(r.title)}
+                            </div>
+                            <div style="color:${CONFIG.text_color}; opacity:.65; font-size:${CONFIG.font_size * .85}px; margin-top:4px;">
+                              ${sourceIcon} ${esc(r.category)}
+                            </div>
+                            ${r.isDraft ? `<div style="color:#f59e0b; font-size:${CONFIG.font_size * .8}px; font-weight:600; margin-top:4px;">📝 DRAFT</div>` : ''}
+                          </div>
+                          <button type="button" class="text-xl"
+                            onclick="event.stopPropagation(); toggleFavorite('${id}')">
+                            ${r.favorite ? '⭐' : '☆'}
+                          </button>
+                        </div>
+
+                        <div class="flex gap-2 mt-3">
+                          ${r.isDraft ? `
+                            <button type="button"
+                              onclick="event.stopPropagation(); publishDraft('${id}')"
+                              class="flex-1 px-2 py-1.5 rounded button-hover text-center"
+                              style="background:#16a34a; color:white; font-size:${CONFIG.font_size * .85}px;">
+                              Publish
+                            </button>
+                          ` : ''}
+                          <button type="button"
+                            onclick="event.stopPropagation(); openEditRecipe('${id}')"
+                            class="flex-1 px-2 py-1.5 rounded button-hover text-center"
+                            style="background:${CONFIG.primary_action_color}; color:${CONFIG.text_color}; font-size:${CONFIG.font_size * .85}px;">
+                            Edit
+                          </button>
+                          <button type="button"
+                            onclick="event.stopPropagation(); if(confirm('Delete this recipe?')) deleteRecipe(state.recipes.find(x=>(x.__backendId||x.id)==='${id}'))"
+                            class="flex-1 px-2 py-1.5 rounded button-hover text-center"
+                            style="background:#dc2626; color:white; font-size:${CONFIG.font_size * .85}px;">
+                            Delete
+                          </button>
+                        </div>
+                      </div>
+                    </div>`;
+                  }).join('')}
+                </div>
+              `}
+            </div>
+          </div>
+        </div>`;
+    }
+
+    function renderIngredientGrid() {
+      if (!state.recipeForm) return '';
+
+      return `
+        <div class="mt-6">
+          <div class="flex items-center justify-between mb-2">
+            <label class="font-semibold" style="color:${CONFIG.text_color};">Ingredients</label>
+            <button type="button" onclick="addIngRow()"
+              class="px-3 py-2 rounded button-hover"
+              style="background:${CONFIG.primary_action_color}; color:${CONFIG.text_color};">+ Add</button>
+          </div>
+
+          <div class="rounded overflow-hidden" style="border:1px solid rgba(255,255,255,0.08);">
+            <div class="grid" style="grid-template-columns:110px 120px 1fr 160px 56px; background:rgba(255,255,255,0.04);">
+              <div class="p-3 font-semibold" style="color:${CONFIG.text_color}; opacity:.85;">Amt</div>
+              <div class="p-3 font-semibold" style="color:${CONFIG.text_color}; opacity:.85;">Unit</div>
+              <div class="p-3 font-semibold" style="color:${CONFIG.text_color}; opacity:.85;">Ingredient</div>
+              <div class="p-3 font-semibold" style="color:${CONFIG.text_color}; opacity:.85;">Group</div>
+              <div class="p-3"></div>
+            </div>
+
+            ${(state.recipeForm.ingredientsRows || []).map((row, i) => `
+              <div class="grid items-center" style="grid-template-columns:110px 120px 1fr 160px 56px; border-top:1px solid rgba(255,255,255,0.06);">
+                <div class="p-2">
+                  <input class="w-full px-3 py-2 rounded border"
+                    style="background:rgba(0,0,0,0.16); color:${CONFIG.text_color}; border-color:rgba(255,255,255,0.10);"
+                    value="${esc(row.qty || '')}"
+                    oninput="setIng(${i},'qty',this.value)" />
+                </div>
+
+                <div class="p-2">
+                  <input class="w-full px-3 py-2 rounded border" placeholder="e.g. lb"
+                    style="background:rgba(0,0,0,0.16); color:${CONFIG.text_color}; border-color:rgba(255,255,255,0.10);"
+                    value="${esc(row.unit || '')}"
+                    oninput="setIng(${i},'unit',this.value)" />
+                </div>
+
+                <div class="p-2">
+                  <input class="w-full px-3 py-2 rounded border" placeholder="e.g. Chicken breast"
+                    style="background:rgba(0,0,0,0.16); color:${CONFIG.text_color}; border-color:rgba(255,255,255,0.10);"
+                    value="${esc(row.name || '')}"
+                    oninput="setIng(${i},'name',this.value)" />
+                </div>
+
+                <div class="p-2">
+                  <select class="w-full px-3 py-2 rounded border"
+                    style="background:rgba(0,0,0,0.16); color:${CONFIG.text_color}; border-color:rgba(255,255,255,0.10);"
+                    onchange="setIng(${i},'group',this.value)">
+                    ${ING_GROUPS.map(g => `<option value="${g}" ${(row.group || 'Produce') === g ? 'selected' : ''}>${g}</option>`).join('')}
+                  </select>
+                </div>
+
+                <div class="p-2 flex justify-center">
+                  <button type="button" onclick="delIngRow(${i})"
+                    class="w-10 h-10 rounded button-hover"
+                    style="background:rgba(220,38,38,0.75); color:white;">×</button>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        </div>`;
+    }
+
+    function renderRecipeEdit() {
+      if (!state.recipeForm) return '';
+
+      return `
+        <div class="p-6 max-w-5xl mx-auto">
+          <div class="flex items-center justify-between mb-6 mobile-stack gap-3">
+            <h2 class="font-bold" style="color:${CONFIG.text_color}; font-size:${CONFIG.font_size * 1.6}px;">
+              ${state.recipeForm.id ? 'Edit Recipe' : (state.recipeForm.isDraft ? 'New Draft' : 'New Recipe')}
+            </h2>
+            <div class="flex gap-2">
+              <button type="button" onclick="closeRecipeEditor()"
+                class="px-4 py-2 rounded button-hover"
+                style="background:${CONFIG.secondary_action_color}; color:${CONFIG.text_color};">Cancel</button>
+              <button type="button" onclick="saveRecipeForm()"
+                class="px-4 py-2 rounded button-hover"
+                style="background:${CONFIG.primary_action_color}; color:${CONFIG.text_color};">
+                ${state.recipeForm.isDraft ? 'Save Draft' : 'Save Recipe'}
+              </button>
+            </div>
+          </div>
+
+          <div class="rounded p-6" style="background:${CONFIG.surface_color};">
+            <label class="block mb-2 font-semibold" style="color:${CONFIG.text_color};">Recipe Title *</label>
+            <input class="w-full px-4 py-3 rounded border"
+              style="background:rgba(0,0,0,0.18); color:${CONFIG.text_color}; border-color:rgba(255,255,255,0.12);"
+              value="${esc(state.recipeForm.title || '')}"
+              oninput="setRecipeField('title', this.value)" />
+
+            <div class="grid md:grid-cols-2 gap-4 mt-5">
+              <div>
+                <label class="block mb-2 font-semibold" style="color:${CONFIG.text_color};">Category *</label>
+                <select class="w-full px-4 py-3 rounded border"
+                  style="background:rgba(0,0,0,0.18); color:${CONFIG.text_color}; border-color:rgba(255,255,255,0.12);"
+                  onchange="setRecipeField('category', this.value)">
+                  ${MEAL_CATEGORIES.map(c => `
+                    <option value="${c}" ${state.recipeForm.category === c ? 'selected' : ''}>${c}</option>
+                  `).join('')}
+                </select>
+              </div>
+
+              <div>
+                <label class="block mb-2 font-semibold" style="color:${CONFIG.text_color};">Source Type</label>
+                <select class="w-full px-4 py-3 rounded border"
+                  style="background:rgba(0,0,0,0.18); color:${CONFIG.text_color}; border-color:rgba(255,255,255,0.12);"
+                  onchange="setRecipeField('sourceType', this.value)">
+                  <option value="user" ${(state.recipeForm.sourceType || 'user') === 'user' ? 'selected' : ''}>User-Created</option>
+                  <option value="chefiq" ${state.recipeForm.sourceType === 'chefiq' ? 'selected' : ''}>ChefIQ Guided</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="mt-5">
+              <label class="block mb-2 font-semibold" style="color:${CONFIG.text_color};">Recipe URL *</label>
+              <input class="w-full px-4 py-3 rounded border" placeholder="https://..."
+                style="background:rgba(0,0,0,0.18); color:${CONFIG.text_color}; border-color:rgba(255,255,255,0.12);"
+                value="${esc(state.recipeForm.recipe_url || '')}"
+                oninput="setRecipeField('recipe_url', this.value)" />
+            </div>
+
+            <div class="mt-5">
+              <label class="block mb-2 font-semibold" style="color:${CONFIG.text_color};">Image</label>
+              
+              <!-- Tab Selection -->
+              <div class="flex gap-2 mb-3">
+                <button type="button" 
+                  onclick="document.getElementById('imageUrlTab').style.display='block'; document.getElementById('imageUploadTab').style.display='none'; this.style.background='${CONFIG.primary_action_color}'; this.nextElementSibling.style.background='rgba(255,255,255,0.05)';"
+                  class="px-3 py-2 rounded button-hover"
+                  style="background:${CONFIG.primary_action_color}; color:${CONFIG.text_color}; font-size:${CONFIG.font_size * 0.9}px;">
+                  🔗 Image URL
+                </button>
+                <button type="button"
+                  onclick="document.getElementById('imageUrlTab').style.display='none'; document.getElementById('imageUploadTab').style.display='block'; this.style.background='${CONFIG.primary_action_color}'; this.previousElementSibling.style.background='rgba(255,255,255,0.05)';"
+                  class="px-3 py-2 rounded button-hover"
+                  style="background:rgba(255,255,255,0.05); color:${CONFIG.text_color}; font-size:${CONFIG.font_size * 0.9}px;">
+                  📤 Upload Image
+                </button>
+              </div>
+
+              <!-- Image URL Tab -->
+              <div id="imageUrlTab">
+                <input class="w-full px-4 py-3 rounded border" placeholder="Paste image URL here"
+                  style="background:rgba(0,0,0,0.18); color:${CONFIG.text_color}; border-color:rgba(255,255,255,0.12);"
+                  value="${esc(state.recipeForm.image_url || '')}"
+                  oninput="setRecipeField('image_url', this.value)" />
+                <p style="color:${CONFIG.text_color}; opacity:0.6; font-size:${CONFIG.font_size * 0.85}px; margin-top:8px;">
+                  Enter a URL to an image hosted online
+                </p>
+              </div>
+
+              <!-- Image Upload Tab -->
+              <div id="imageUploadTab" style="display:none;">
+                <div class="rounded border-2 border-dashed p-6 text-center"
+                  style="border-color:rgba(255,255,255,0.2); background:rgba(0,0,0,0.1);">
+                  <input type="file" id="imageUploadInput" accept="image/*" 
+                    onchange="handleImageUpload(event)"
+                    class="hidden" />
+                  <label for="imageUploadInput" class="cursor-pointer">
+                    <div style="font-size:3rem; margin-bottom:0.5rem;">📸</div>
+                    <div style="color:${CONFIG.text_color}; font-size:${CONFIG.font_size}px; margin-bottom:0.5rem;">
+                      Click to upload or drag image here
+                    </div>
+                    <div style="color:${CONFIG.text_color}; opacity:0.6; font-size:${CONFIG.font_size * 0.85}px;">
+                      Supports JPG, PNG, GIF (max 5MB)
+                    </div>
+                  </label>
+                </div>
+              </div>
+
+              <!-- Image Preview -->
+              ${state.recipeForm.image_url ? `
+                <div class="mt-4 rounded overflow-hidden relative" style="border:1px solid rgba(255,255,255,0.08);">
+                  <img src="${esc(state.recipeForm.image_url)}" style="width:100%; max-height:260px; object-fit:cover;" />
+                  <button type="button" onclick="removeImage()"
+                    class="absolute top-2 right-2 px-3 py-1.5 rounded button-hover"
+                    style="background:rgba(220,38,38,0.9); color:white; font-size:${CONFIG.font_size * 0.85}px;">
+                    ✕ Remove
+                  </button>
+                </div>` : ''}
+            </div>
+
+            ${renderIngredientGrid()}
+
+            <div class="mt-6">
+              <label class="block mb-2 font-semibold" style="color:${CONFIG.text_color};">Tags (optional)</label>
+              <input class="w-full px-4 py-3 rounded border" placeholder="e.g. Mediterranean, High Protein"
+                style="background:rgba(0,0,0,0.18); color:${CONFIG.text_color}; border-color:rgba(255,255,255,0.12);"
+                value="${esc(state.recipeForm.tags || '')}"
+                oninput="setRecipeField('tags', this.value)" />
+            </div>
+
+            <div class="mt-6">
+              <label class="block mb-2 font-semibold" style="color:${CONFIG.text_color};">
+                Step-by-step Instructions (optional)
+                <span style="opacity:0.7; font-weight:normal; font-size:${CONFIG.font_size * 0.85}px;"> — Enter each step on a new line</span>
+              </label>
+              <textarea class="w-full px-4 py-3 rounded border"
+                style="background:rgba(0,0,0,0.18); color:${CONFIG.text_color}; border-color:rgba(255,255,255,0.12); min-height:180px;"
+                placeholder="Step 1: Preheat oven to 350°F
+Step 2: Mix dry ingredients
+Step 3: Add wet ingredients..."
+                oninput="setRecipeField('instructions', this.value)">${state.recipeForm.instructions || ''}</textarea>
+            </div>
+
+            <div class="mt-6">
+              <label class="block mb-2 font-semibold" style="color:${CONFIG.text_color};">Notes (optional)</label>
+              <textarea class="w-full px-4 py-3 rounded border"
+                style="background:rgba(0,0,0,0.18); color:${CONFIG.text_color}; border-color:rgba(255,255,255,0.12); min-height:120px;"
+                oninput="setRecipeField('notes', this.value)">${state.recipeForm.notes || ''}</textarea>
+            </div>
+
+            <div class="mt-6">
+              <label class="flex items-center gap-2" style="color:${CONFIG.text_color};">
+                <input type="checkbox" ${state.recipeForm.isDraft ? 'checked' : ''}
+                  onchange="setRecipeField('isDraft', this.checked)">
+                Save as Draft (won't appear in meal planning)
+              </label>
+            </div>
+          </div>
+        </div>`;
+    }
+
+    function renderRecipeView() {
+      const r = getRecipeById(state.selectedRecipeViewId);
+      if (!r) return `<div class="p-6" style="color:${CONFIG.text_color};">Recipe not found.</div>`;
+
+      const img = recipeThumb(r);
+      const url = (r.recipe_url || '').trim();
+      const tags = (r.tags || '').trim();
+      const notes = (r.notes || '').trim();
+      const instructions = (r.instructions || '').trim();
+      const sourceLabel = r.sourceType === 'chefiq' ? '🤖 ChefIQ Guided' : '👤 User-Created';
+
+      const rows = Array.isArray(r.ingredientsRows) ? r.ingredientsRows : [];
+      const grouped = {};
+      rows.forEach(x => {
+        const g = x.group || 'Other';
+        if (!grouped[g]) grouped[g] = [];
+        grouped[g].push(x);
+      });
+      const groupOrder = Object.keys(grouped);
+
+      // Parse instructions into steps
+      const instructionSteps = instructions ? instructions.split('\n').filter(s => s.trim()) : [];
+
+      return `
+        <div class="p-6 max-w-5xl mx-auto">
+          <div class="flex items-center justify-between mb-4 mobile-stack gap-3">
+            <button type="button" onclick="state.currentView='recipes'; render();"
+              class="px-4 py-2 rounded button-hover"
+              style="background:${CONFIG.secondary_action_color}; color:${CONFIG.text_color};">← Back</button>
+
+            <div class="flex gap-2">
+              ${r.isDraft ? `
+                <button type="button" onclick="publishDraft('${r.__backendId || r.id}')"
+                  class="px-4 py-2 rounded button-hover"
+                  style="background:#16a34a; color:white;">Publish</button>
+              ` : ''}
+              <button type="button" onclick="openEditRecipe('${r.__backendId || r.id}')"
+                class="px-4 py-2 rounded button-hover"
+                style="background:${CONFIG.primary_action_color}; color:${CONFIG.text_color};">Edit</button>
+            </div>
+          </div>
+
+          <div class="rounded p-5" style="background:${CONFIG.surface_color};">
+            <div class="flex items-start justify-between gap-3">
+              <div>
+                <div class="font-bold" style="color:${CONFIG.text_color}; font-size:${CONFIG.font_size * 1.7}px;">
+                  ${esc(r.title)}
+                </div>
+                <div style="color:${CONFIG.text_color}; opacity:.7;">
+                  ${esc(r.category)} • ${sourceLabel}
+                </div>
+                ${r.isDraft ? `<div style="color:#f59e0b; font-weight:600; margin-top:8px;">📝 DRAFT - Not available for meal planning</div>` : ''}
+              </div>
+              <button type="button" onclick="toggleFavorite('${r.__backendId || r.id}')" class="text-2xl">
+                ${r.favorite ? '⭐' : '☆'}
+              </button>
+            </div>
+
+            ${img ? `<div class="mt-4 rounded overflow-hidden" style="border:1px solid rgba(255,255,255,0.08);">
+              <img src="${esc(img)}" style="width:100%; max-height:260px; object-fit:cover;" />
+            </div>` : ''}
+
+            ${url ? `<div class="mt-4">
+              <a href="${esc(url)}" target="_blank" rel="noopener noreferrer"
+                style="color:${CONFIG.text_color}; text-decoration:underline; opacity:.9;">
+                Open recipe link →
+              </a>
+            </div>` : ''}
+
+            ${tags ? `<div class="mt-4" style="color:${CONFIG.text_color}; opacity:.85;">
+              <span class="font-semibold">Tags:</span> ${esc(tags)}
+            </div>` : ''}
+
+            ${groupOrder.length ? `
+              <div class="mt-6">
+                <div class="font-semibold mb-2" style="color:${CONFIG.text_color};">Ingredients</div>
+                ${groupOrder.map(g => `
+                  <div class="mb-4">
+                    <div class="font-semibold" style="color:${CONFIG.text_color}; opacity:.8;">${esc(g)}</div>
+                    <ul class="mt-2" style="color:${CONFIG.text_color}; opacity:.9;">
+                      ${grouped[g].map(x => `<li>• ${esc((x.qty || '').trim())} ${esc((x.unit || '').trim())} ${esc((x.name || '').trim())}</li>`).join('')}
+                    </ul>
+                  </div>
+                `).join('')}
+              </div>` : ''}
+
+            <div class="mt-6">
+              <div class="font-semibold mb-2" style="color:${CONFIG.text_color};">Step-by-step Instructions</div>
+              ${instructionSteps.length ? `
+                <ol class="space-y-3" style="color:${CONFIG.text_color}; opacity:.9; list-style: none; counter-reset: step-counter;">
+                  ${instructionSteps.map((step, idx) => `
+                    <li style="counter-increment: step-counter; padding-left: 2.5rem; position: relative;">
+                      <span style="position: absolute; left: 0; font-weight: 600; color: ${CONFIG.primary_action_color};">
+                        Step ${idx + 1}:
+                      </span>
+                      ${esc(step)}
+                    </li>
+                  `).join('')}
+                </ol>` : `
+                <div style="color:${CONFIG.text_color}; opacity:.6;">
+                  No instructions saved yet. Add them in Edit.
+                </div>`}
+            </div>
+
+            ${notes ? `
+              <div class="mt-6">
+                <div class="font-semibold mb-2" style="color:${CONFIG.text_color};">Notes</div>
+                <div class="rounded p-4" style="background:rgba(255,255,255,0.03); color:${CONFIG.text_color}; white-space:pre-wrap;">
+                  ${esc(notes)}
+                </div>
+              </div>` : ''}
+          </div>
+        </div>`;
+    }
+
+    function renderWeeklyPlan() {
+      const weekDates = getWeekDates(state.currentWeekStartDate);
+      const meals = ['Breakfast', 'Lunch', 'Dinner'];
+
+      return `
+        <div class="p-6 max-w-7xl mx-auto">
+          <div class="flex items-center justify-between mb-6">
+            <h2 class="font-bold" style="color:${CONFIG.text_color}; font-size:${CONFIG.font_size * 1.5}px;">
+              ${CONFIG.weekly_plan_label}
+            </h2>
+            <div class="flex gap-2">
+              <button type="button" onclick="changeWeek(-1)" class="px-4 py-2 rounded button-hover"
+                style="background:${CONFIG.secondary_action_color}; color:${CONFIG.text_color}; font-size:${CONFIG.font_size}px;">← Previous</button>
+              <button type="button" onclick="changeWeek(1)" class="px-4 py-2 rounded button-hover"
+                style="background:${CONFIG.secondary_action_color}; color:${CONFIG.text_color}; font-size:${CONFIG.font_size}px;">Next →</button>
+            </div>
+          </div>
+
+          <div class="grid gap-4">
+            ${weekDates.map(date => {
+              const plan = state.planData.find(p => p.date === date);
+              return `
+              <div class="rounded p-4" style="background:${CONFIG.surface_color};">
+                <div class="font-semibold mb-3" style="color:${CONFIG.text_color}; font-size:${CONFIG.font_size * 1.1}px;">
+                  ${formatDateDisplay(date)}
+                </div>
+                <div class="grid gap-2">
+                  ${meals.map(meal => {
+                    const key = meal.toLowerCase();
+                    const rid = plan ? plan[key] : null;
+                    const r = rid ? getRecipeById(rid) : null;
+                    const img = r ? recipeThumb(r) : '';
+                    const url = r ? (r.recipe_url || '').trim() : '';
+                    const linkStart = url ? `<a href="${esc(url)}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation();" class="flex items-center gap-3">` : `<div class="flex items-center gap-3">`;
+                    const linkEnd = url ? `</a>` : `</div>`;
+
+                    return `
+                    <div class="flex items-center justify-between p-3 rounded" style="background:rgba(255,255,255,0.03);">
+                      ${linkStart}
+                        ${img ? `<img src="${esc(img)}" style="width:42px;height:42px;object-fit:cover;border-radius:10px;border:1px solid rgba(255,255,255,0.08);" />` :
+                             `<div style="width:42px;height:42px;border-radius:10px;background:rgba(255,255,255,0.06);"></div>`}
+                        <div>
+                          <div style="color:${CONFIG.text_color}; opacity:.7; font-size:${CONFIG.font_size * .85}px;">${meal}</div>
+                          <div style="color:${CONFIG.text_color}; font-size:${CONFIG.font_size}px;">
+                            ${r ? esc(r.title) : '<span style="opacity:.5;">No meal planned</span>'}
+                          </div>
+                        </div>
+                      ${linkEnd}
+
+                      <div class="flex gap-2">
+                        ${r ? `
+                          <button type="button" onclick="event.stopPropagation(); openRecipeView('${r.__backendId || r.id}')"
+                            class="px-3 py-1 rounded button-hover"
+                            style="background:${CONFIG.secondary_action_color}; color:${CONFIG.text_color}; font-size:${CONFIG.font_size * .85}px;">
+                            View
+                          </button>
+                          <button type="button" onclick="event.stopPropagation(); removeMealFromPlan('${date}','${meal}')"
+                            class="px-3 py-1 rounded button-hover"
+                            style="background:#dc2626;color:white;font-size:${CONFIG.font_size * .85}px;">
+                            Remove
+                          </button>` : ''}
+
+                        <button type="button" onclick="event.stopPropagation(); openRecipePicker('${date}','${meal}')"
+                          class="px-3 py-1 rounded button-hover"
+                          style="background:${CONFIG.primary_action_color};color:${CONFIG.text_color};font-size:${CONFIG.font_size * .85}px;">
+                          ${r ? 'Change' : 'Add'}
+                        </button>
+                      </div>
+                    </div>`;
+                  }).join('')}
+                </div>
+              </div>`;
+            }).join('')}
+          </div>
+        </div>`;
+    }
+
+    function renderRecipePicker() {
+      // Only show published recipes in picker
+      const filteredRecipes = state.recipes.filter(r => {
+        if (r.isDraft) return false; // Exclude drafts
+        if (state.filterFavorites && !r.favorite) return false;
+        if (state.searchTerm && !r.title.toLowerCase().includes(state.searchTerm.toLowerCase())) return false;
+        return r.category === state.selectedCategory;
+      });
+
+      return `
+        <div class="p-6 max-w-6xl mx-auto">
+          <div class="flex items-center justify-between mb-6 mobile-stack gap-3">
+            <h2 style="color: ${CONFIG.text_color}; font-size: ${CONFIG.font_size * 1.5}px; font-family: ${CONFIG.font_family}, sans-serif;" class="font-bold">
+              Select Recipe for ${formatDateDisplay(state.selectedDayForRecipe)} - ${state.selectedMealForRecipe}
+            </h2>
+            <button type="button" onclick="state.currentView='weekly-plan'; state.selectedDayForRecipe=null; state.selectedMealForRecipe=null; render();"
+                    style="background: ${CONFIG.secondary_action_color}; color: ${CONFIG.text_color}; font-family: ${CONFIG.font_family}, sans-serif; font-size: ${CONFIG.font_size}px;"
+                    class="px-4 py-2 rounded button-hover">
+              Cancel
+            </button>
+          </div>
+
+          <div class="mb-4 flex gap-4 mobile-stack">
+            <input type="text" placeholder="Search recipes..."
+                   style="background: ${CONFIG.surface_color}; color: ${CONFIG.text_color}; border-color: ${CONFIG.secondary_action_color}; font-family: ${CONFIG.font_family}, sans-serif; font-size: ${CONFIG.font_size}px;"
+                   class="flex-1 px-4 py-2 rounded border mobile-full"
+                   value="${state.searchTerm}"
+                   oninput="state.searchTerm = this.value; render();">
+
+            <label style="color: ${CONFIG.text_color}; font-family: ${CONFIG.font_family}, sans-serif; font-size: ${CONFIG.font_size}px;" class="flex items-center gap-2">
+              <input type="checkbox" ${state.filterFavorites ? 'checked' : ''}
+                     onchange="state.filterFavorites = this.checked; render();">
+              Favorites Only
+            </label>
+          </div>
+
+          <div class="flex gap-2 mb-6 flex-wrap">
+            ${MEAL_CATEGORIES.map(cat => `
+              <button type="button" onclick="state.selectedCategory='${cat}'; render();"
+                      style="background: ${state.selectedCategory === cat ? CONFIG.primary_action_color : CONFIG.secondary_action_color};
+                             color: ${CONFIG.text_color}; font-family: ${CONFIG.font_family}, sans-serif; font-size: ${CONFIG.font_size}px;"
+                      class="px-4 py-2 rounded button-hover">
+                ${cat}
+              </button>
+            `).join('')}
+          </div>
+
+          <div class="grid gap-3">
+            ${filteredRecipes.length === 0 ? `
+              <div style="background: ${CONFIG.surface_color}; color: ${CONFIG.text_color}; font-family: ${CONFIG.font_family}, sans-serif; font-size: ${CONFIG.font_size}px;"
+                   class="p-8 rounded text-center">
+                No recipes found
+              </div>
+            ` : filteredRecipes.map(recipe => {
+              const sourceLabel = recipe.sourceType === 'chefiq' ? '🤖' : '👤';
+              return `
+              <button type="button"
+                      onclick="handleRecipePickerSelect('${recipe.__backendId || recipe.id}')"
+                      style="background: ${CONFIG.surface_color}; color: ${CONFIG.text_color}; font-family: ${CONFIG.font_family}, sans-serif; font-size: ${CONFIG.font_size}px;"
+                      class="p-4 rounded card-hover text-left w-full flex items-center justify-between">
+                <div class="flex items-center gap-4">
+                  ${recipe.favorite ? '<span style="font-size: 1.25rem;">⭐</span>' : ''}
+                  <span style="font-size: 1.25rem;">${sourceLabel}</span>
+                  <div>
+                    <div class="font-semibold" style="font-size: ${CONFIG.font_size * 1.125}px;">${recipe.title}</div>
+                    <div style="opacity: 0.7; font-size: ${CONFIG.font_size * 0.875}px;">${recipe.category}</div>
+                  </div>
+                </div>
+                <div style="color: ${CONFIG.primary_action_color}; font-size: ${CONFIG.font_size}px;">Select →</div>
+              </button>
+            `}).join('')}
+          </div>
+        </div>
+      `;
+    }
+
+    function renderGroceryIngredients() {
+      const r = getRecipeById(state.selectedGroceryRecipeId);
+      if (!r) return `<div class="p-6">Recipe not found</div>`;
+
+      const list = recipeIngList(r);
+      const selId = `mealSel_${state.selectedGroceryDate}_${state.selectedGroceryMeal}`;
+      const sel = state.mealSelections.find(s => s.id === selId);
+
+      let keys = [];
+      try {
+        keys = sel ? JSON.parse(sel.includedIngredientKeys || '[]') : list.map(x => normalizeIngredient(x.name));
+      } catch (e) {
+        keys = list.map(x => normalizeIngredient(x.name));
+      }
+
+      return `
+        <div class="p-6 max-w-4xl mx-auto">
+          <div class="flex items-center justify-between mb-6">
+            <div>
+              <h2 class="font-bold" style="color:${CONFIG.text_color}; font-size:${CONFIG.font_size * 1.5}px;">Choose Ingredients</h2>
+              <p style="color:${CONFIG.text_color}; opacity:.7; font-size:${CONFIG.font_size * .9}px;">
+                ${esc(r.title)} • ${formatDateDisplay(state.selectedGroceryDate)} ${esc(state.selectedGroceryMeal)}
+              </p>
+            </div>
+            <button type="button" onclick="state.currentView='grocery-list'; render();"
+              class="px-4 py-2 rounded button-hover"
+              style="background:${CONFIG.primary_action_color}; color:${CONFIG.text_color}; font-size:${CONFIG.font_size}px;">
+              Done
+            </button>
+          </div>
+
+          <div class="rounded p-4" style="background:${CONFIG.surface_color};">
+            ${list.length ? list.map(ing => {
+              const k = normalizeIngredient(ing.name);
+              const checked = keys.includes(k);
+              return `
+              <label class="flex items-center justify-between gap-3 p-3 rounded mb-2"
+                style="background:rgba(255,255,255,0.04); color:${CONFIG.text_color}; font-size:${CONFIG.font_size}px;">
+                <div class="flex items-center gap-3">
+                  <input type="checkbox" ${checked ? 'checked' : ''}
+                    onchange="toggleMealIngredient('${k}')" />
+                  <span>${esc(ing.qty)}${ing.unit ? ' ' + esc(ing.unit) : ''} ${esc(ing.name)}</span>
+                </div>
+              </label>`;
+            }).join('') : `<div style="color:${CONFIG.text_color};opacity:.7;">No ingredients on this recipe yet.</div>`}
+          </div>
+        </div>`;
+    }
+
+    function renderGrocerySelectMeals() {
+      const plannedMeals = getPlannedMealsForWeek(state.currentWeekStartDate);
+
+      return `
+        <div class="p-6 max-w-4xl mx-auto">
+          <div class="flex items-center justify-between mb-6">
+            <h2 style="color: ${CONFIG.text_color}; font-size: ${CONFIG.font_size * 1.5}px; font-family: ${CONFIG.font_family}, sans-serif;" class="font-bold">
+              Select Meals for Grocery List
+            </h2>
+            <button type="button" onclick="state.currentView='grocery-list'; render();"
+                    style="background: ${CONFIG.primary_action_color}; color: ${CONFIG.text_color}; font-family: ${CONFIG.font_family}, sans-serif; font-size: ${CONFIG.font_size}px;"
+                    class="px-4 py-2 rounded button-hover">
+              Done
+            </button>
+          </div>
+
+          ${plannedMeals.length === 0 ? `
+            <div style="background: ${CONFIG.surface_color}; color: ${CONFIG.text_color}; font-family: ${CONFIG.font_family}, sans-serif; font-size: ${CONFIG.font_size}px;"
+                 class="p-8 rounded text-center">
+              No meals planned for this week
+            </div>
+          ` : `
+            <div class="grid gap-3">
+              ${plannedMeals.map(meal => `
+                <div style="background: ${CONFIG.surface_color};" class="p-4 rounded card-hover flex items-center justify-between">
+                  <div>
+                    <div style="color: ${CONFIG.text_color}; font-family: ${CONFIG.font_family}, sans-serif; font-size: ${CONFIG.font_size * 1.125}px;" class="font-semibold">
+                      ${meal.recipeTitle}
+                    </div>
+                    <div style="color: ${CONFIG.text_color}; opacity: 0.7; font-size: ${CONFIG.font_size * 0.875}px; font-family: ${CONFIG.font_family}, sans-serif;">
+                      ${formatDateDisplay(meal.date)} - ${meal.meal}
+                    </div>
+                  </div>
+                  <button type="button" onclick="openGroceryIngredientPicker('${meal.date}', '${meal.meal}', '${meal.recipeId}')"
+                          style="background: ${CONFIG.primary_action_color}; color: ${CONFIG.text_color}; font-family: ${CONFIG.font_family}, sans-serif; font-size: ${CONFIG.font_size}px;"
+                          class="px-4 py-2 rounded button-hover">
+                    Choose Ingredients
+                  </button>
+                </div>
+              `).join('')}
+            </div>
+          `}
+        </div>
+      `;
+    }
+
+    function renderGroceryList() {
+      const groceryList = getGroceryList();
+      const unchecked = groceryList.filter(item => !item.checked);
+      const checked = groceryList.filter(item => item.checked);
+
+      return `
+        <div class="p-6 max-w-4xl mx-auto">
+          <div class="flex items-center justify-between mb-6">
+            <h2 style="color: ${CONFIG.text_color}; font-size: ${CONFIG.font_size * 1.5}px; font-family: ${CONFIG.font_family}, sans-serif;" class="font-bold">
+              ${CONFIG.grocery_list_label}
+            </h2>
+            <button type="button" onclick="state.currentView='grocery-select-meals'; render();"
+                    style="background: ${CONFIG.primary_action_color}; color: ${CONFIG.text_color}; font-family: ${CONFIG.font_family}, sans-serif; font-size: ${CONFIG.font_size}px;"
+                    class="px-4 py-2 rounded button-hover">
+              Select Meals
+            </button>
+          </div>
+
+          ${groceryList.length === 0 ? `
+            <div style="background: ${CONFIG.surface_color}; color: ${CONFIG.text_color}; font-family: ${CONFIG.font_family}, sans-serif; font-size: ${CONFIG.font_size}px;"
+                 class="p-8 rounded text-center">
+              No ingredients selected. Click "Select Meals" to add items to your grocery list.
+            </div>
+          ` : `
+            <div style="background: ${CONFIG.surface_color};" class="rounded p-4">
+              ${unchecked.length > 0 ? `
+                <div class="mb-4">
+                  <h3 style="color: ${CONFIG.text_color}; font-family: ${CONFIG.font_family}, sans-serif; font-size: ${CONFIG.font_size * 1.125}px;" class="font-semibold mb-2">
+                    To Buy
+                  </h3>
+                  ${unchecked.map(item => `
+                    <label style="color: ${CONFIG.text_color}; font-family: ${CONFIG.font_family}, sans-serif; font-size: ${CONFIG.font_size}px;"
+                           class="flex items-center gap-3 p-3 rounded hover:bg-opacity-50 cursor-pointer">
+                      <input type="checkbox" onchange="toggleGroceryItem('${normalizeIngredient(item.name)}')">
+                      <span>${item.quantity} ${item.unit} ${item.name}</span>
+                    </label>
+                  `).join('')}
+                </div>
+              ` : ''}
+
+              ${checked.length > 0 ? `
+                <div>
+                  <h3 style="color: ${CONFIG.text_color}; font-family: ${CONFIG.font_family}, sans-serif; font-size: ${CONFIG.font_size * 1.125}px;" class="font-semibold mb-2">
+                    Checked Off
+                  </h3>
+                  ${checked.map(item => `
+                    <label style="color: ${CONFIG.text_color}; opacity: 0.5; font-family: ${CONFIG.font_family}, sans-serif; font-size: ${CONFIG.font_size}px;"
+                           class="flex items-center gap-3 p-3 rounded hover:bg-opacity-50 cursor-pointer line-through">
+                      <input type="checkbox" checked onchange="toggleGroceryItem('${normalizeIngredient(item.name)}')">
+                      <span>${item.quantity} ${item.unit} ${item.name}</span>
+                    </label>
+                  `).join('')}
+                </div>
+              ` : ''}
+            </div>
+          `}
+        </div>
+      `;
+    }
+
+    // ===== MAIN RENDER =====
+    function render() {
+      const app = document.getElementById('app');
+
+      let content = '';
+      switch (state.currentView) {
+        case 'home':
+          content = renderHome();
+          break;
+        case 'recipes':
+          content = renderRecipes();
+          break;
+        case 'recipe-edit':
+          content = renderRecipeEdit();
+          break;
+        case 'recipe-view':
+          content = renderRecipeView();
+          break;
+        case 'weekly-plan':
+          content = renderWeeklyPlan();
+          break;
+        case 'recipe-picker':
+          content = renderRecipePicker();
+          break;
+        case 'grocery-list':
+          content = renderGroceryList();
+          break;
+        case 'grocery-select-meals':
+          content = renderGrocerySelectMeals();
+          break;
+        case 'grocery-ingredients':
+          content = renderGroceryIngredients();
+          break;
+        default:
+          content = renderHome();
+      }
+
+      app.innerHTML = `
+        <div style="background: ${CONFIG.background_color}; min-height: 100%;">
+          ${renderNav()}
+          ${content}
+        </div>
+      `;
+    }
+
+    // ===== INITIALIZATION =====
+    async function init() {
+      await storage.init(dataHandler);
+      setupKeyboardShortcuts();
+      render();
+      
+      // Show welcome message on first load
+      if (state.recipes.length === 0) {
+        setTimeout(() => {
+          showToast('Welcome! Press ⚙️ to view keyboard shortcuts', 'info');
+        }, 500);
+      }
+    }
+
+    init();
+  </script>
+</body>
+</html>
