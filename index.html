@@ -1,9 +1,17 @@
-<!doctype html>
+const planData = state.planData || [];<!doctype html>
 <html lang="en" class="h-full">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Meal Planner</title>
+  <!-- Test image in head to verify loading -->
+  <script>
+    // Test if we can load external images
+    const testImg = new Image();
+    testImg.onload = () => console.log('✅ External images CAN load in this environment');
+    testImg.onerror = () => console.error('❌ External images CANNOT load in this environment');
+    testImg.src = 'https://picsum.photos/50/50';
+  </script>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
     body {
@@ -51,8 +59,75 @@
       navigation: auto;
     }
 
+    /* Default styles - Mobile first */
+    .mobile-filters {
+      display: block;
+    }
+
+    .desktop-sidebar {
+      display: none;
+    }
+
+    .recipe-card-desktop {
+      display: none;
+    }
+
+    .recipe-list-mobile {
+      display: block;
+    }
+
+    .mobile-list-item {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      gap: 12px;
+      padding: 12px;
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+      cursor: pointer;
+    }
+
+    .mobile-list-item:last-child {
+      border-bottom: none;
+    }
+
+    .mobile-list-item img {
+      width: 60px;
+      height: 60px;
+      flex-shrink: 0;
+      border-radius: 8px;
+      object-fit: cover;
+    }
+
+    .mobile-list-content {
+      flex: 1;
+      min-width: 0;
+    }
+
+    /* Desktop overrides - ONLY on large screens */
+    @media (min-width: 1025px) {
+      .mobile-filters {
+        display: none;
+      }
+
+      .desktop-sidebar {
+        display: grid;
+      }
+
+      .recipe-card-desktop {
+        display: grid;
+      }
+
+      .recipe-list-mobile {
+        display: none;
+      }
+
+      .mobile-list-item {
+        display: none;
+      }
+    }
+
     /* Mobile optimizations */
-    @media (max-width: 768px) {
+    @media (max-width: 1024px) {
       .mobile-stack {
         flex-direction: column;
       }
@@ -60,6 +135,91 @@
       .mobile-full {
         width: 100%;
       }
+
+      /* Hide sidebar on mobile - show inline filters */
+      .desktop-sidebar {
+        display: none !important;
+      }
+
+      .mobile-filters {
+        display: block !important;
+      }
+
+      /* Compact list view for mobile */
+      .recipe-card-desktop {
+        display: none !important;
+      }
+
+      .recipe-list-mobile {
+        display: block !important;
+      }
+
+      .mobile-list-item {
+        display: flex !important;
+        flex-direction: row !important;
+        align-items: center;
+        gap: 12px;
+        padding: 12px;
+        border-bottom: 1px solid rgba(255,255,255,0.08);
+      }
+
+      .mobile-list-item:last-child {
+        border-bottom: none;
+      }
+
+      .mobile-list-item img {
+        width: 60px;
+        height: 60px;
+        flex-shrink: 0;
+        border-radius: 8px;
+        object-fit: cover;
+      }
+
+      .mobile-list-content {
+        flex: 1;
+        min-width: 0;
+      }
+
+      /* Reduce header size on mobile */
+      .page-header h2 {
+        font-size: 1.5rem !important;
+      }
+
+      .page-header p {
+        font-size: 0.75rem !important;
+      }
+
+      /* Stack buttons vertically on mobile */
+      .header-buttons {
+        flex-direction: column;
+        width: 100%;
+        gap: 8px;
+      }
+
+      .header-buttons button {
+        width: 100%;
+        font-size: 14px !important;
+        padding: 10px 16px !important;
+      }
+
+      /* Compact padding */
+      .page-container {
+        padding: 12px !important;
+      }
+    }
+
+    /* Accordion styling */
+    details summary {
+      transition: all 0.2s;
+    }
+
+    details[open] summary span:first-of-type {
+      transform: rotate(90deg);
+      display: inline-block;
+    }
+
+    details summary::-webkit-details-marker {
+      display: none;
     }
 
     /* Toast notifications */
@@ -100,12 +260,13 @@
   <script>
     // ===== CONFIG & STATE =====
     const CONFIG = {
-      background_color: "#1a1a2e",
-      surface_color: "#16213e",
-      text_color: "#eaeaea",
-      primary_action_color: "#0f3460",
-      secondary_action_color: "#533483",
-      font_family: "sans-serif",
+      background_color: "#0f0f23",
+      surface_color: "#1a1a2e",
+      text_color: "#e4e4e7",
+      primary_action_color: "#667eea",
+      secondary_action_color: "#764ba2",
+      accent_color: "#f59e0b",
+      font_family: "system-ui, -apple-system, sans-serif",
       font_size: 16,
       app_title: "Meal Planner",
       recipes_label: "My Recipes",
@@ -113,33 +274,37 @@
       grocery_list_label: "Grocery List"
     };
 
-    const ING_GROUPS = ['Produce', 'Meat', 'Seafood', 'Dairy', 'Pantry', 'Frozen', 'Bakery', 'Other'];
+    const ING_GROUPS = ['Produce', 'Beef', 'Poultry', 'Pork', 'Lamb & Goat', 'Seafood', 'Dairy & Eggs', 'Grains & Pasta', 'Pantry', 'Spices & Seasonings', 'Prepared', 'Other'];
     const MEAL_CATEGORIES = ['Breakfast', 'Lunch', 'Dinner', 'Appetizer'];
     const SOURCE_TYPES = ['user', 'chefiq'];
     const STORAGE_KEY = 'meal_planner_data_v1';
 
     // State
+
     const state = {
-      recipes: [],
-      planData: [],
-      mealSelections: [],
-      groceryItems: [],
-      currentView: 'home',
-      recipeForm: null,
-      selectedDayForRecipe: null,
-      selectedMealForRecipe: null,
-      selectedCategory: 'All',
-      searchTerm: '',
-      filterFavorites: false,
-      filterSourceType: 'all', // 'all', 'user', 'chefiq'
-      showDrafts: false,
-      selectedGroceryDate: null,
-      selectedGroceryMeal: null,
-      selectedGroceryRecipeId: null,
-      currentWeekStartDate: getMonday(new Date()).toISOString().split('T')[0],
+  recipes: [],
+  planData: [],
+  mealSelections: [],
+  groceryItems: [],
+  currentView: 'home',
+  recipeForm: null,
+  selectedDayForRecipe: null,
+  selectedMealForRecipe: null,
+  selectedCategory: 'All',
+  searchTerm: '',
+  filterFavorites: false,
+  filterUserCreated: false,  // ← ADD THIS LINE
+  filterSourceType: 'all',
+  filterIngredientGroup: 'all',
+  showDrafts: false,
+  selectedGroceryDate: null,
+  selectedGroceryMeal: null,
+  selectedGroceryRecipeId: null,
+currentWeekStartDate: new Date().toISOString().split('T')[0],
       isLoading: false,
-      selectedRecipeViewId: null
-    };
+  selectedRecipeViewId: null,
+  viewingFromPlan: null,
+};
 
     // ===== STORAGE SDK =====
     const storage = {
@@ -205,16 +370,18 @@
       return new Date(d.setDate(diff));
     }
 
-    function getWeekDates(startDate) {
-      const dates = [];
-      const start = new Date(startDate);
-      for (let i = 0; i < 7; i++) {
-        const date = new Date(start);
-        date.setDate(start.getDate() + i);
-        dates.push(date.toISOString().split('T')[0]);
-      }
-      return dates;
-    }
+   function getWeekDates(startDate) {
+  const dates = [];
+  const start = new Date(startDate);
+  
+  // Start with the given date and get the next 7 days
+  for (let i = 0; i < 7; i++) {
+    const date = new Date(start);
+    date.setDate(start.getDate() + i);
+    dates.push(date.toISOString().split('T')[0]);
+  }
+  return dates;
+}
 
     function formatDateDisplay(dateStr) {
       const date = new Date(dateStr + 'T00:00:00');
@@ -441,7 +608,15 @@
 
     function recipeThumb(r) {
       const u = (r?.image_url || '').trim();
-      return u ? u : '';
+      if (!u) return '';
+      
+      // Handle both http and https
+      if (u.startsWith('http://') || u.startsWith('https://') || u.startsWith('data:')) {
+        return u;
+      }
+      
+      // If no protocol, assume https
+      return 'https://' + u;
     }
 
     function recipeIngList(r) {
@@ -535,6 +710,208 @@
       render();
     }
 
+    function showBulkImportModal() {
+      openModal(`
+        <div style="color: #1a1a2e;">
+          <h2 class="text-2xl font-bold mb-4">📋 Bulk Import Ingredients</h2>
+          <p class="mb-4">Paste your ingredient list below. The app will automatically parse quantities, units, and names.</p>
+          
+          <div class="mb-4 p-3 bg-blue-50 rounded">
+            <p class="font-semibold mb-2">Supported Formats:</p>
+            <ul class="text-sm space-y-1">
+              <li>• "1 lb Boneless lamb stew meat"</li>
+              <li>• "2 Tbsp Finely chopped fresh ginger"</li>
+              <li>• "1/2 tsp Cayenne"</li>
+              <li>• "1 14.5-oz can Crushed tomatoes"</li>
+              <li>• "Chopped fresh cilantro (Optional)"</li>
+            </ul>
+          </div>
+
+          <textarea id="bulkIngredientInput" 
+            class="w-full p-3 border rounded" 
+            rows="12"
+            placeholder="Paste ingredients here...
+1 lb Boneless lamb stew meat
+1 tsp Kosher salt
+1 tsp Ground coriander
+..."
+            style="font-family: monospace; font-size: 14px;"></textarea>
+          
+          <div class="flex gap-2 justify-end mt-4">
+            <button onclick="closeModal()" class="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400">
+              Cancel
+            </button>
+            <button onclick="processBulkIngredients()" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
+              Import Ingredients
+            </button>
+          </div>
+        </div>
+      `);
+    }
+
+    function processBulkIngredients() {
+      const textarea = document.getElementById('bulkIngredientInput');
+      const text = textarea.value.trim();
+      
+      if (!text) {
+        showError('Please paste some ingredients first');
+        return;
+      }
+
+      const lines = text.split('\n').filter(line => line.trim());
+      const parsedIngredients = [];
+
+      lines.forEach(line => {
+        const parsed = parseIngredientLine(line);
+        if (parsed.name) {
+          parsedIngredients.push(parsed);
+        }
+      });
+
+      if (parsedIngredients.length === 0) {
+        showError('No valid ingredients found');
+        return;
+      }
+
+      // Add to recipe form
+      ensureRecipeForm();
+      state.recipeForm.ingredientsRows = parsedIngredients;
+      
+      closeModal();
+      render();
+      showToast(`Imported ${parsedIngredients.length} ingredients!`, 'success');
+    }
+
+    function parseIngredientLine(line) {
+      line = line.trim();
+      
+      // Remove leading bullet points or dashes
+      line = line.replace(/^[•\-\*]\s*/, '');
+      
+      // Common units to look for
+      const units = [
+        'lb', 'lbs', 'pound', 'pounds',
+        'oz', 'ounce', 'ounces',
+        'g', 'gram', 'grams',
+        'kg', 'kilogram', 'kilograms',
+        'tsp', 'teaspoon', 'teaspoons',
+        'tbsp', 'tablespoon', 'tablespoons',
+        'cup', 'cups',
+        'ml', 'milliliter', 'milliliters',
+        'l', 'liter', 'liters',
+        'can', 'cans',
+        'piece', 'pieces',
+        'slice', 'slices',
+        'clove', 'cloves',
+        'inch', 'inches'
+      ];
+
+      // Try to match: quantity unit name
+      // Examples: "1 lb Boneless lamb", "2 Tbsp Fresh ginger", "1/2 tsp Cayenne"
+      const regex = /^([\d\/\.\s]+)?\s*([a-zA-Z\-]+)?\s*(.+)$/;
+      const match = line.match(regex);
+
+      if (!match) {
+        return { qty: '', unit: '', name: line, group: 'Other' };
+      }
+
+      let [, quantity, possibleUnit, rest] = match;
+      quantity = (quantity || '').trim();
+      possibleUnit = (possibleUnit || '').toLowerCase().trim();
+      rest = (rest || '').trim();
+
+      let unit = '';
+      let name = rest;
+
+      // Check if possibleUnit is actually a unit
+      if (possibleUnit && units.includes(possibleUnit)) {
+        unit = possibleUnit;
+      } else if (possibleUnit) {
+        // It's not a unit, it's part of the name
+        name = possibleUnit + ' ' + rest;
+      }
+
+      // Clean up name - remove parenthetical notes like (Optional), (from a 2-inch piece)
+      const cleanName = name.replace(/\([^)]*\)$/g, '').trim();
+      
+      // Remove trailing commas and clean up
+      const finalName = cleanName.replace(/,\s*$/, '').trim();
+
+      // Auto-detect ingredient group
+      const group = detectIngredientGroup(finalName);
+
+      return {
+        qty: quantity,
+        unit: unit,
+        name: finalName,
+        group: group
+      };
+    }
+
+    function detectIngredientGroup(name) {
+      const nameLower = name.toLowerCase();
+      
+      // Comprehensive keyword matching with priority order (most specific first)
+      
+      // Spices & Seasonings (check first - very specific)
+      if (nameLower.match(/\b(salt|pepper|spice|cumin|coriander|turmeric|cayenne|paprika|cinnamon|nutmeg|clove|cardamom|bay leaf|bay leaves|thyme|rosemary|oregano|basil|sage|dill|tarragon|chive|mint|parsley|cilantro|masala|garam masala|curry powder|chili powder|red pepper flakes|garlic powder|onion powder|ginger powder|fennel seed|caraway|anise|saffron|vanilla|extract|seasoning|dried herbs?|ground spices?|whole spices?|peppercorn|kosher salt|sea salt|himalayan salt|black pepper|white pepper|cayenne pepper|chili flakes?|italian seasoning|herbs? de provence|five spice|chinese five spice|cajun|creole|taco seasoning|ranch|everything bagel)\b/)) {
+        return 'Spices & Seasonings';
+      }
+      
+      // Beef (specific cuts and types)
+      if (nameLower.match(/\b(beef|steak|ground beef|chuck|brisket|ribeye|rib eye|sirloin|tenderloin|filet mignon|t-bone|porterhouse|new york strip|flank|skirt|hanger|tri-tip|short rib|oxtail|beef shank|stew meat|beef roast|prime rib|london broil|beef patty|beef patties|ground chuck|beef mince|corned beef|pastrami|beef jerky)\b/)) {
+        return 'Beef';
+      }
+      
+      // Poultry (all types)
+      if (nameLower.match(/\b(chicken|turkey|duck|quail|cornish hen|poultry|breast|thigh|wing|drumstick|chicken breast|chicken thigh|turkey breast|ground chicken|ground turkey|chicken tenders|chicken cutlet|whole chicken|rotisserie chicken|chicken quarters?|duck breast|duck leg)\b/)) {
+        return 'Poultry';
+      }
+      
+      // Pork (all cuts and products)
+      if (nameLower.match(/\b(pork|bacon|ham|sausage|prosciutto|pancetta|chorizo|salami|pepperoni|pork chop|pork loin|pork shoulder|pork belly|ground pork|pork ribs?|baby back ribs?|spare ribs?|pork tenderloin|pulled pork|pork roast|canadian bacon|breakfast sausage|italian sausage|bratwurst|hot dogs?|frankfurter|kielbasa|andouille)\b/)) {
+        return 'Pork';
+      }
+      
+      // Lamb & Goat (all cuts)
+      if (nameLower.match(/\b(lamb|goat|mutton|lamb chop|lamb shank|lamb shoulder|leg of lamb|rack of lamb|ground lamb|lamb stew|lamb loin|goat meat|lamb ribs?)\b/)) {
+        return 'Lamb & Goat';
+      }
+      
+      // Seafood (comprehensive)
+      if (nameLower.match(/\b(fish|salmon|tuna|shrimp|prawns?|crab|lobster|seafood|cod|tilapia|halibut|mahi|mahi-mahi|scallops?|clams?|mussels?|oysters?|anchovies|anchovy|sardines?|trout|bass|snapper|grouper|catfish|sole|flounder|haddock|swordfish|mackerel|herring|sea bass|seabass|shellfish|calamari|squid|octopus|crayfish|crawfish|caviar|roe|fish fillet|fish steak|smoked salmon|canned tuna|canned salmon|imitation crab)\b/)) {
+        return 'Seafood';
+      }
+      
+      // Dairy & Eggs (all dairy products)
+      if (nameLower.match(/\b(milk|cream|cheese|butter|yogurt|egg|cheddar|mozzarella|parmesan|parmigiano|pecorino|feta|ricotta|cottage cheese|cream cheese|sour cream|heavy cream|whipping cream|half and half|buttermilk|whole milk|skim milk|2% milk|almond milk|oat milk|coconut milk|evaporated milk|condensed milk|powdered milk|goat cheese|chevre|brie|camembert|gouda|swiss|provolone|monterey jack|pepper jack|blue cheese|gorgonzola|mascarpone|burrata|ghee|clarified butter|unsalted butter|salted butter|margarine|eggs?|egg whites?|egg yolks?|quail eggs?|whey|greek yogurt|plain yogurt|kefir|crème fraiche|clotted cream)\b/)) {
+        return 'Dairy & Eggs';
+      }
+      
+      // Grains & Pasta (all types)
+      if (nameLower.match(/\b(rice|pasta|noodles?|spaghetti|penne|rigatoni|linguine|fettuccine|angel hair|macaroni|lasagna|ravioli|tortellini|gnocchi|orzo|couscous|quinoa|bulgur|farro|barley|oats?|oatmeal|wheat|grain|bread|baguette|sourdough|whole wheat|white bread|rye bread|pita|naan|tortilla|flour tortilla|corn tortilla|wrap|bagel|english muffin|bun|roll|dinner roll|kaiser roll|ciabatta|focaccia|breadcrumb|panko|crouton|flour|all-purpose flour|bread flour|whole wheat flour|cornmeal|polenta|grits|cereal|granola|muesli|arborio rice|jasmine rice|basmati rice|brown rice|white rice|wild rice|rice noodle|ramen|udon|soba|pad thai noodle|lo mein|vermicelli|egg noodle|wheat noodle|glass noodle)\b/)) {
+        return 'Grains & Pasta';
+      }
+      
+      // Pantry (oils, sauces, condiments, canned goods)
+      if (nameLower.match(/\b(oil|olive oil|vegetable oil|canola oil|coconut oil|sesame oil|peanut oil|avocado oil|grapeseed oil|sunflower oil|corn oil|cooking oil|spray oil|vinegar|balsamic|apple cider vinegar|white vinegar|red wine vinegar|rice vinegar|wine vinegar|sauce|soy sauce|tamari|fish sauce|worcestershire|oyster sauce|hoisin|teriyaki|hot sauce|tabasco|sriracha|chili sauce|BBQ sauce|barbecue sauce|ketchup|catsup|mustard|dijon|yellow mustard|whole grain mustard|mayo|mayonnaise|aioli|salsa|pico de gallo|marinara|tomato sauce|pasta sauce|alfredo|pesto|tahini|hummus|salad dressing|ranch|caesar|vinaigrette|honey|maple syrup|agave|molasses|corn syrup|simple syrup|sugar|brown sugar|white sugar|powdered sugar|confectioners sugar|granulated sugar|coconut sugar|stock|broth|chicken stock|beef stock|vegetable stock|bone broth|bouillon|demi-glace|wine|cooking wine|red wine|white wine|sherry|marsala|mirin|sake|beer|stout|ale|peanut butter|almond butter|cashew butter|sunflower butter|nutella|jam|jelly|preserves|marmalade|apple butter|relish|pickle|pickles|capers|olives|olive|kalamata|green olive|black olive|sun-dried tomato|tomato paste|canned tomato|diced tomato|crushed tomato|whole tomato|canned beans?|canned corn|canned peas|canned chickpea|canned tuna|canned salmon|canned soup|tomato soup|chicken noodle|condensed soup|bean|black beans?|kidney beans?|pinto beans?|cannellini|great northern|chickpea|garbanzo|lentils?|split peas?|dried beans?|baking powder|baking soda|yeast|active dry yeast|instant yeast|cornstarch|corn starch|potato starch|tapioca|arrowroot|gelatin|agar|pectin|cocoa powder|chocolate chips?|dark chocolate|milk chocolate|white chocolate|baking chocolate|vanilla extract|almond extract|food coloring|sprinkles)\b/)) {
+        return 'Pantry';
+      }
+      
+      // Produce (vegetables, fruits, fresh herbs - very comprehensive)
+      if (nameLower.match(/\b(produce|vegetable|fruit|lettuce|spinach|kale|arugula|chard|collard|cabbage|bok choy|napa cabbage|brussels sprout|broccoli|cauliflower|romanesco|broccolini|asparagus|artichoke|carrot|celery|onion|red onion|yellow onion|white onion|sweet onion|vidalia|shallot|leek|scallion|green onion|spring onion|garlic|ginger|galangal|turmeric root|horseradish|radish|turnip|rutabaga|parsnip|beet|beetroot|potato|russet potato|yukon gold|red potato|sweet potato|yam|bell pepper|red pepper|green pepper|yellow pepper|orange pepper|jalapeño|jalapeno|serrano|habanero|poblano|anaheim|chili pepper|thai chili|pepper|hot pepper|banana pepper|cherry pepper|pepperoncini|tomato|cherry tomato|grape tomato|roma tomato|beefsteak|heirloom tomato|tomatillo|cucumber|english cucumber|persian cucumber|zucchini|yellow squash|summer squash|butternut squash|acorn squash|spaghetti squash|pumpkin|winter squash|eggplant|aubergine|okra|green beans?|string beans?|snap peas?|snow peas?|sugar snap|edamame|corn|sweet corn|corn on the cob|baby corn|mushroom|button mushroom|cremini|portobello|shiitake|oyster mushroom|enoki|porcini|morel|chanterelle|fresh mushroom|cilantro|coriander leaves|parsley|fresh parsley|flat-leaf parsley|curly parsley|basil|fresh basil|thai basil|mint|fresh mint|dill|fresh dill|chives?|fresh chive|tarragon|fresh tarragon|sage|fresh sage|rosemary|fresh rosemary|thyme|fresh thyme|oregano|fresh oregano|bay leaf fresh|lemongrass|curry leaves?|kaffir lime|lime leaves?|watercress|microgreen|sprouts?|alfalfa sprout|bean sprout|mung bean|avocado|apple|gala|honeycrisp|granny smith|fuji|red delicious|golden delicious|banana|plantain|orange|mandarin|clementine|tangerine|blood orange|navel orange|grapefruit|lemon|meyer lemon|lime|key lime|pear|anjou|bartlett|bosc|asian pear|peach|nectarine|apricot|plum|cherry|rainier cherry|bing cherry|grape|red grape|green grape|seedless grape|berry|strawberry|blueberry|raspberry|blackberry|cranberry|gooseberry|currant|melon|watermelon|cantaloupe|honeydew|mango|papaya|pineapple|kiwi|star fruit|dragon fruit|passion fruit|fig|date|pomegranate|persimmon|guava|lychee|rambutan|coconut|fresh coconut|young coconut)\b/)) {
+        return 'Produce';
+      }
+      
+      // Prepared (frozen, canned, pre-made, packaged)
+      if (nameLower.match(/\b(frozen|canned|prepared|ready|pre-cooked|precooked|instant|packaged|pre-made|premade|pre-cut|precut|store-bought|storebought|frozen vegetables?|frozen fruit|frozen dinner|frozen meal|frozen pizza|frozen fries|frozen french fries|frozen peas|frozen corn|frozen berries|frozen shrimp|frozen fish|ice cream|frozen yogurt|gelato|sorbet|sherbet|popsicle|frozen waffle|frozen pancake|frozen hash brown|tater tots?|TV dinner|microwave meal|instant noodle|instant rice|instant oatmeal|instant coffee|pre-washed|bagged salad|pre-shredded|shredded cheese|pre-sliced|deli meat|lunch meat|rotisserie|pre-cooked chicken|canned soup|canned chili|canned ravioli|frozen lasagna|frozen burrito|hot pocket|pizza roll|chicken nugget|fish stick|frozen vegetable mix|stir fry mix|ready-to-eat)\b/)) {
+        return 'Prepared';
+      }
+      
+      // Default to Other
+      return 'Other';
+    }
+
     function delIngRow(i) {
       ensureRecipeForm();
       state.recipeForm.ingredientsRows.splice(i, 1);
@@ -582,8 +959,9 @@
       render();
     }
 
-    function openRecipeView(id) {
+    function openRecipeView(id, fromPlan = null) {
       state.selectedRecipeViewId = id;
+      state.viewingFromPlan = fromPlan; // {date, meal} or null
       state.currentView = 'recipe-view';
       render();
     }
@@ -736,12 +1114,13 @@
       }
     }
 
-    function openRecipePicker(date, meal) {
-      state.selectedDayForRecipe = date;
-      state.selectedMealForRecipe = meal;
-      state.currentView = 'recipe-picker';
-      render();
-    }
+   function openRecipePicker(date, meal) {
+  state.selectedDayForRecipe = date;
+  state.selectedMealForRecipe = meal;
+  state.selectedCategory = 'All'; // Default to All when picking recipes
+  render();  // ← Move render() before changing view
+  state.currentView = 'recipe-picker';
+}
 
     async function handleRecipePickerSelect(recipeId) {
       await savePlan(state.selectedDayForRecipe, state.selectedMealForRecipe, recipeId);
@@ -953,32 +1332,33 @@
       if (state.currentView === 'home') return '';
 
       return `
-        <nav style="background: ${CONFIG.surface_color};" class="p-4 mb-0">
+        <nav style="background: ${CONFIG.surface_color}; box-shadow: 0 2px 8px rgba(0,0,0,0.2);" class="p-4 mb-0 sticky top-0 z-50">
           <div class="max-w-7xl mx-auto flex items-center justify-between mobile-stack gap-4">
             <button type="button" onclick="navigateTo('home')"
-                    style="color: ${CONFIG.text_color}; font-size: ${CONFIG.font_size * 1.25}px; font-family: ${CONFIG.font_family}, sans-serif;"
-                    class="font-bold button-hover">
-              ${CONFIG.app_title}
+                    style="color: ${CONFIG.text_color}; font-size: ${CONFIG.font_size * 1.3}px; font-family: ${CONFIG.font_family};"
+                    class="font-bold button-hover flex items-center gap-2">
+              <span style="font-size: 1.5rem;">🍽️</span>
+              <span class="app-title">${CONFIG.app_title}</span>
             </button>
-            <div class="flex gap-4 flex-wrap">
+            <div class="flex gap-3 flex-wrap items-center">
               <button type="button" onclick="navigateTo('recipes')"
-                      style="color: ${CONFIG.text_color}; font-family: ${CONFIG.font_family}, sans-serif; font-size: ${CONFIG.font_size}px;"
-                      class="button-hover ${state.currentView.includes('recipe') ? 'font-bold' : ''}">
-                ${CONFIG.recipes_label}
+                      style="color: ${CONFIG.text_color}; font-family: ${CONFIG.font_family}; font-size: ${CONFIG.font_size}px;"
+                      class="button-hover px-3 py-2 rounded-lg ${state.currentView.includes('recipe') ? 'glass' : ''}">
+                📚 ${CONFIG.recipes_label}
               </button>
               <button type="button" onclick="navigateTo('weekly-plan')"
-                      style="color: ${CONFIG.text_color}; font-family: ${CONFIG.font_family}, sans-serif; font-size: ${CONFIG.font_size}px;"
-                      class="button-hover ${state.currentView === 'weekly-plan' ? 'font-bold' : ''}">
-                ${CONFIG.weekly_plan_label}
+                      style="color: ${CONFIG.text_color}; font-family: ${CONFIG.font_family}; font-size: ${CONFIG.font_size}px;"
+                      class="button-hover px-3 py-2 rounded-lg ${state.currentView === 'weekly-plan' ? 'glass' : ''}">
+                📅 ${CONFIG.weekly_plan_label}
               </button>
               <button type="button" onclick="navigateTo('grocery-list')"
-                      style="color: ${CONFIG.text_color}; font-family: ${CONFIG.font_family}, sans-serif; font-size: ${CONFIG.font_size}px;"
-                      class="button-hover ${state.currentView.includes('grocery') ? 'font-bold' : ''}">
-                ${CONFIG.grocery_list_label}
+                      style="color: ${CONFIG.text_color}; font-family: ${CONFIG.font_family}; font-size: ${CONFIG.font_size}px;"
+                      class="button-hover px-3 py-2 rounded-lg ${state.currentView.includes('grocery') ? 'glass' : ''}">
+                🛒 ${CONFIG.grocery_list_label}
               </button>
               <button type="button" onclick="showSettingsMenu()"
-                      style="color: ${CONFIG.text_color}; font-family: ${CONFIG.font_family}, sans-serif; font-size: ${CONFIG.font_size}px;"
-                      class="button-hover"
+                      style="color: ${CONFIG.text_color}; font-family: ${CONFIG.font_family}; font-size: ${CONFIG.font_size * 1.3}px;"
+                      class="button-hover p-2 rounded-lg hover:glass"
                       title="Settings & Export/Import">
                 ⚙️
               </button>
@@ -1085,50 +1465,62 @@
 
     function renderHome() {
       return `
-        <div class="p-6 max-w-6xl mx-auto">
-          <h1 style="color: ${CONFIG.text_color}; font-size: ${CONFIG.font_size * 2}px; font-family: ${CONFIG.font_family}, sans-serif;"
-              class="app-title mb-8 text-center">
+        <div class="p-6 max-w-6xl mx-auto fade-in">
+          <h1 style="color: ${CONFIG.text_color}; font-size: ${CONFIG.font_size * 2.5}px; font-family: ${CONFIG.font_family};"
+              class="app-title mb-4 text-center font-bold">
             ${CONFIG.app_title}
           </h1>
+          <p class="text-center mb-12" style="color: ${CONFIG.text_color}; opacity: 0.7; font-size: ${CONFIG.font_size * 1.1}px;">
+            Plan meals, organize recipes, and shop smarter
+          </p>
 
           <div class="grid md:grid-cols-3 gap-6">
             <button type="button" onclick="navigateTo('recipes')"
-                    style="background: ${CONFIG.surface_color};"
-                    class="p-8 rounded-lg card-hover text-center">
-              <div style="font-size: 3rem;" class="mb-4">🍳</div>
-              <h3 style="color: ${CONFIG.text_color}; font-size: ${CONFIG.font_size * 1.25}px; font-family: ${CONFIG.font_family}, sans-serif;"
-                  class="font-bold mb-2">
+                    style="background: linear-gradient(135deg, ${CONFIG.surface_color} 0%, rgba(102, 126, 234, 0.1) 100%);"
+                    class="p-8 rounded-2xl card-hover text-center glass">
+              <div style="font-size: 4rem;" class="mb-4">🍳</div>
+              <h3 style="color: ${CONFIG.text_color}; font-size: ${CONFIG.font_size * 1.4}px; font-family: ${CONFIG.font_family};"
+                  class="font-bold mb-3">
                 ${CONFIG.recipes_label}
               </h3>
-              <p style="color: ${CONFIG.text_color}; opacity: 0.7; font-size: ${CONFIG.font_size}px; font-family: ${CONFIG.font_family}, sans-serif;">
+              <p style="color: ${CONFIG.text_color}; opacity: 0.7; font-size: ${CONFIG.font_size}px; font-family: ${CONFIG.font_family};">
                 Browse and manage your recipe collection
               </p>
+              <div class="mt-4 chip" style="background: rgba(102, 126, 234, 0.2); color: ${CONFIG.primary_action_color};">
+                ${state.recipes.length} recipes
+              </div>
             </button>
 
             <button type="button" onclick="navigateTo('weekly-plan')"
-                    style="background: ${CONFIG.surface_color};"
-                    class="p-8 rounded-lg card-hover text-center">
-              <div style="font-size: 3rem;" class="mb-4">📅</div>
-              <h3 style="color: ${CONFIG.text_color}; font-size: ${CONFIG.font_size * 1.25}px; font-family: ${CONFIG.font_family}, sans-serif;"
-                  class="font-bold mb-2">
+                    style="background: linear-gradient(135deg, ${CONFIG.surface_color} 0%, rgba(118, 75, 162, 0.1) 100%);"
+                    class="p-8 rounded-2xl card-hover text-center glass">
+              <div style="font-size: 4rem;" class="mb-4">📅</div>
+              <h3 style="color: ${CONFIG.text_color}; font-size: ${CONFIG.font_size * 1.4}px; font-family: ${CONFIG.font_family};"
+                  class="font-bold mb-3">
                 ${CONFIG.weekly_plan_label}
               </h3>
-              <p style="color: ${CONFIG.text_color}; opacity: 0.7; font-size: ${CONFIG.font_size}px; font-family: ${CONFIG.font_family}, sans-serif;">
+              <p style="color: ${CONFIG.text_color}; opacity: 0.7; font-size: ${CONFIG.font_size}px; font-family: ${CONFIG.font_family};">
                 Plan your meals for the week
               </p>
+              <div class="mt-4 chip" style="background: rgba(118, 75, 162, 0.2); color: ${CONFIG.secondary_action_color};">
+                ${state.planData.length} plans
+              </div>
             </button>
 
             <button type="button" onclick="navigateTo('grocery-list')"
-                    style="background: ${CONFIG.surface_color};"
-                    class="p-8 rounded-lg card-hover text-center">
-              <div style="font-size: 3rem;" class="mb-4">🛒</div>
-              <h3 style="color: ${CONFIG.text_color}; font-size: ${CONFIG.font_size * 1.25}px; font-family: ${CONFIG.font_family}, sans-serif;"
-                  class="font-bold mb-2">
+                    style="background: linear-gradient(135deg, ${CONFIG.surface_color} 0%, rgba(245, 158, 11, 0.1) 100%);"
+                    class="p-8 rounded-2xl card-hover text-center glass">
+              <div style="font-size: 4rem;" class="mb-4">🛒</div>
+              <h3 style="color: ${CONFIG.text_color}; font-size: ${CONFIG.font_size * 1.4}px; font-family: ${CONFIG.font_family};"
+                  class="font-bold mb-3">
                 ${CONFIG.grocery_list_label}
               </h3>
-              <p style="color: ${CONFIG.text_color}; opacity: 0.7; font-size: ${CONFIG.font_size}px; font-family: ${CONFIG.font_family}, sans-serif;">
+              <p style="color: ${CONFIG.text_color}; opacity: 0.7; font-size: ${CONFIG.font_size}px; font-family: ${CONFIG.font_family};">
                 Generate shopping list from your plan
               </p>
+              <div class="mt-4 chip" style="background: rgba(245, 158, 11, 0.2); color: ${CONFIG.accent_color};">
+                Smart lists
+              </div>
             </button>
           </div>
         </div>
@@ -1147,6 +1539,14 @@
         if (state.filterSourceType !== 'all' && r.sourceType !== state.filterSourceType) return false;
         if (!state.showDrafts && state.selectedCategory !== 'All' && r.category !== state.selectedCategory) return false;
         if (state.searchTerm && !(r.title || '').toLowerCase().includes(state.searchTerm.toLowerCase())) return false;
+        
+        // Filter by ingredient group
+        if (state.filterIngredientGroup !== 'all') {
+          const recipeIngredients = recipeIngList(r);
+          const hasIngredientInGroup = recipeIngredients.some(ing => ing.group === state.filterIngredientGroup);
+          if (!hasIngredientInGroup) return false;
+        }
+        
         return true;
       });
 
@@ -1154,110 +1554,140 @@
       const publishedCount = state.recipes.filter(r => !r.isDraft).length;
 
       return `
-        <div class="p-6 max-w-7xl mx-auto">
-          <!-- Header -->
+                  <div class="p-6 max-w-7xl mx-auto fade-in">
+          <!-- Header with gradient -->
           <div class="flex items-center justify-between mb-6 mobile-stack gap-3">
             <div>
-              <h2 class="font-bold" style="color:${CONFIG.text_color}; font-size:${CONFIG.font_size * 1.5}px;">
-                ${CONFIG.recipes_label}
+              <h2 class="font-bold flex items-center gap-2" style="color:${CONFIG.text_color}; font-size:${CONFIG.font_size * 1.8}px;">
+                <span>📚</span> ${CONFIG.recipes_label}
               </h2>
-              <p style="color:${CONFIG.text_color}; opacity:0.7; font-size:${CONFIG.font_size * 0.9}px; margin-top:4px;">
+              <p style="color:${CONFIG.text_color}; opacity:0.6; font-size:${CONFIG.font_size * 0.95}px; margin-top:4px;">
                 ${publishedCount} published • ${draftCount} drafts
               </p>
             </div>
-            <div class="flex gap-2">
+            <div class="flex gap-3">
               <button type="button" onclick="openNewDraft()"
-                class="px-4 py-2 rounded button-hover"
-                style="background:${CONFIG.secondary_action_color}; color:${CONFIG.text_color}; font-size:${CONFIG.font_size}px;">
-                💾 Save as Draft
+                class="px-5 py-2.5 rounded-xl button-hover flex items-center gap-2"
+                style="background:${CONFIG.secondary_action_color}; color:${CONFIG.text_color}; font-size:${CONFIG.font_size}px; box-shadow: 0 2px 8px rgba(118, 75, 162, 0.3);">
+                <span>💾</span> Save as Draft
               </button>
               <button type="button" onclick="openNewRecipe()"
-                class="px-4 py-2 rounded button-hover"
-                style="background:${CONFIG.primary_action_color}; color:${CONFIG.text_color}; font-size:${CONFIG.font_size}px;">
-                ➕ Add Recipe
+                class="px-5 py-2.5 rounded-xl button-hover flex items-center gap-2"
+                style="background:${CONFIG.primary_action_color}; color:${CONFIG.text_color}; font-size:${CONFIG.font_size}px; box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);">
+                <span>➕</span> Add Recipe
               </button>
             </div>
           </div>
 
           <!-- Main Content Area -->
-          <div class="grid lg:grid-cols-[240px_1fr] gap-6">
+          <div class="grid lg:grid-cols-[280px_1fr] gap-6">
             <!-- Left Sidebar - Filters -->
             <div class="space-y-4">
-              <!-- Published/Drafts Toggle -->
-              <div class="rounded p-4" style="background:${CONFIG.surface_color};">
-                <h3 class="font-semibold mb-3" style="color:${CONFIG.text_color}; font-size:${CONFIG.font_size * 1.1}px;">
-                  View
+              <!-- View Section -->
+              <div class="rounded-lg p-4" style="background:${CONFIG.surface_color}; border: 1px solid rgba(255,255,255,0.08);">
+                <h3 class="font-semibold mb-3 flex items-center gap-2" style="color:${CONFIG.text_color}; font-size:${CONFIG.font_size * 1.1}px;">
+                  <span>📂</span> View
                 </h3>
                 <div class="space-y-2">
                   <button type="button" 
                     onclick="state.showDrafts = false; state.selectedCategory = 'All'; render();"
-                    class="w-full px-3 py-2 rounded text-left button-hover"
+                    class="w-full px-3 py-2 rounded text-left button-hover transition-all"
                     style="background:${!state.showDrafts ? CONFIG.primary_action_color : 'rgba(255,255,255,0.05)'}; color:${CONFIG.text_color}; font-size:${CONFIG.font_size}px;">
-                    📚 Published (${publishedCount})
+                    📚 Published <span style="opacity:0.6;">(${publishedCount})</span>
                   </button>
                   <button type="button" 
                     onclick="state.showDrafts = true; state.selectedCategory = 'All'; render();"
-                    class="w-full px-3 py-2 rounded text-left button-hover"
+                    class="w-full px-3 py-2 rounded text-left button-hover transition-all"
                     style="background:${state.showDrafts ? CONFIG.primary_action_color : 'rgba(255,255,255,0.05)'}; color:${CONFIG.text_color}; font-size:${CONFIG.font_size}px;">
-                    📝 Drafts (${draftCount})
+                    📝 Drafts <span style="opacity:0.6;">(${draftCount})</span>
                   </button>
                 </div>
               </div>
 
-              <!-- Category Filter (only for published) -->
-              ${!state.showDrafts ? `
-                <div class="rounded p-4" style="background:${CONFIG.surface_color};">
-                  <h3 class="font-semibold mb-3" style="color:${CONFIG.text_color}; font-size:${CONFIG.font_size * 1.1}px;">
-                    Category
+              <!-- Filters Accordion -->
+              <div class="rounded-lg overflow-hidden" style="background:${CONFIG.surface_color}; border: 1px solid rgba(255,255,255,0.08);">
+                <div class="p-4 border-b" style="border-color: rgba(255,255,255,0.08);">
+                  <h3 class="font-semibold flex items-center gap-2" style="color:${CONFIG.text_color}; font-size:${CONFIG.font_size * 1.1}px;">
+                    <span>🔍</span> Filters
                   </h3>
-                  <div class="space-y-2">
-                    <button type="button" onclick="state.selectedCategory='All'; render();"
-                      class="w-full px-3 py-2 rounded text-left button-hover"
-                      style="background:${state.selectedCategory === 'All' ? CONFIG.primary_action_color : 'rgba(255,255,255,0.05)'}; color:${CONFIG.text_color}; font-size:${CONFIG.font_size}px;">
-                      📋 All Categories
+                </div>
+
+                <!-- Category Filter (only for published) -->
+                ${!state.showDrafts ? `
+                  <details open class="border-b" style="border-color: rgba(255,255,255,0.08);">
+                    <summary class="p-3 cursor-pointer hover:bg-opacity-50 font-semibold" style="color:${CONFIG.text_color}; font-size:${CONFIG.font_size * 0.95}px; list-style: none;">
+                      <span>▸</span> Category
+                    </summary>
+                    <div class="px-3 pb-3 space-y-1">
+                      <button type="button" onclick="state.selectedCategory='All'; render();"
+                        class="w-full px-3 py-2 rounded text-left button-hover text-sm"
+                        style="background:${state.selectedCategory === 'All' ? CONFIG.primary_action_color : 'transparent'}; color:${CONFIG.text_color}; font-size:${CONFIG.font_size * 0.9}px;">
+                        All Categories
+                      </button>
+                      ${MEAL_CATEGORIES.map(c => `
+                        <button type="button" onclick="state.selectedCategory='${c}'; render();"
+                          class="w-full px-3 py-2 rounded text-left button-hover text-sm"
+                          style="background:${state.selectedCategory === c ? CONFIG.primary_action_color : 'transparent'}; color:${CONFIG.text_color}; font-size:${CONFIG.font_size * 0.9}px;">
+                          ${c}
+                        </button>
+                      `).join('')}
+                    </div>
+                  </details>
+                ` : ''}
+
+                <!-- Source Filter -->
+                <details open class="border-b" style="border-color: rgba(255,255,255,0.08);">
+                  <summary class="p-3 cursor-pointer hover:bg-opacity-50 font-semibold" style="color:${CONFIG.text_color}; font-size:${CONFIG.font_size * 0.95}px; list-style: none;">
+                    <span>▸</span> Source
+                  </summary>
+                  <div class="px-3 pb-3 space-y-1">
+                    <button type="button" onclick="state.filterSourceType='all'; render();"
+                      class="w-full px-3 py-2 rounded text-left button-hover text-sm"
+                      style="background:${state.filterSourceType === 'all' ? CONFIG.primary_action_color : 'transparent'}; color:${CONFIG.text_color}; font-size:${CONFIG.font_size * 0.9}px;">
+                      📋 All Sources
                     </button>
-                    ${MEAL_CATEGORIES.map(c => `
-                      <button type="button" onclick="state.selectedCategory='${c}'; render();"
-                        class="w-full px-3 py-2 rounded text-left button-hover"
-                        style="background:${state.selectedCategory === c ? CONFIG.primary_action_color : 'rgba(255,255,255,0.05)'}; color:${CONFIG.text_color}; font-size:${CONFIG.font_size}px;">
-                        ${c}
+                    <button type="button" onclick="state.filterSourceType='chefiq'; render();"
+                      class="w-full px-3 py-2 rounded text-left button-hover text-sm"
+                      style="background:${state.filterSourceType === 'chefiq' ? CONFIG.primary_action_color : 'transparent'}; color:${CONFIG.text_color}; font-size:${CONFIG.font_size * 0.9}px;">
+                      🤖 ChefIQ Guided
+                    </button>
+                    <button type="button" onclick="state.filterSourceType='user'; render();"
+                      class="w-full px-3 py-2 rounded text-left button-hover text-sm"
+                      style="background:${state.filterSourceType === 'user' ? CONFIG.primary_action_color : 'transparent'}; color:${CONFIG.text_color}; font-size:${CONFIG.font_size * 0.9}px;">
+                      👤 User-Created
+                    </button>
+                  </div>
+                </details>
+
+                <!-- Ingredient Group Filter -->
+                <details class="border-b" style="border-color: rgba(255,255,255,0.08);">
+                  <summary class="p-3 cursor-pointer hover:bg-opacity-50 font-semibold" style="color:${CONFIG.text_color}; font-size:${CONFIG.font_size * 0.95}px; list-style: none;">
+                    <span>▸</span> Ingredient Type
+                  </summary>
+                  <div class="px-3 pb-3 space-y-1" style="max-height: 240px; overflow-y: auto;">
+                    <button type="button" onclick="state.filterIngredientGroup='all'; render();"
+                      class="w-full px-3 py-2 rounded text-left button-hover text-sm"
+                      style="background:${state.filterIngredientGroup === 'all' ? CONFIG.primary_action_color : 'transparent'}; color:${CONFIG.text_color}; font-size:${CONFIG.font_size * 0.9}px;">
+                      🍽️ All Ingredients
+                    </button>
+                    ${ING_GROUPS.map(group => `
+                      <button type="button" onclick="state.filterIngredientGroup='${group}'; render();"
+                        class="w-full px-3 py-2 rounded text-left button-hover text-sm"
+                        style="background:${state.filterIngredientGroup === group ? CONFIG.primary_action_color : 'transparent'}; color:${CONFIG.text_color}; font-size:${CONFIG.font_size * 0.85}px;">
+                        ${group}
                       </button>
                     `).join('')}
                   </div>
-                </div>
-              ` : ''}
+                </details>
 
-              <!-- Source Filter -->
-              <div class="rounded p-4" style="background:${CONFIG.surface_color};">
-                <h3 class="font-semibold mb-3" style="color:${CONFIG.text_color}; font-size:${CONFIG.font_size * 1.1}px;">
-                  Source
-                </h3>
-                <div class="space-y-2">
-                  <button type="button" onclick="state.filterSourceType='all'; render();"
-                    class="w-full px-3 py-2 rounded text-left button-hover"
-                    style="background:${state.filterSourceType === 'all' ? CONFIG.primary_action_color : 'rgba(255,255,255,0.05)'}; color:${CONFIG.text_color}; font-size:${CONFIG.font_size}px;">
-                    📋 All Sources
-                  </button>
-                  <button type="button" onclick="state.filterSourceType='chefiq'; render();"
-                    class="w-full px-3 py-2 rounded text-left button-hover"
-                    style="background:${state.filterSourceType === 'chefiq' ? CONFIG.primary_action_color : 'rgba(255,255,255,0.05)'}; color:${CONFIG.text_color}; font-size:${CONFIG.font_size}px;">
-                    🤖 ChefIQ Guided
-                  </button>
-                  <button type="button" onclick="state.filterSourceType='user'; render();"
-                    class="w-full px-3 py-2 rounded text-left button-hover"
-                    style="background:${state.filterSourceType === 'user' ? CONFIG.primary_action_color : 'rgba(255,255,255,0.05)'}; color:${CONFIG.text_color}; font-size:${CONFIG.font_size}px;">
-                    👤 User-Created
-                  </button>
+                <!-- Additional Filters -->
+                <div class="p-3">
+                  <label class="flex items-center gap-2 cursor-pointer p-2 rounded hover:bg-opacity-50" style="color:${CONFIG.text_color}; font-size:${CONFIG.font_size * 0.9}px;">
+                    <input type="checkbox" ${state.filterFavorites ? 'checked' : ''}
+                      onchange="state.filterFavorites=this.checked; render();">
+                    <span>⭐</span> Favorites Only
+                  </label>
                 </div>
-              </div>
-
-              <!-- Additional Filters -->
-              <div class="rounded p-4" style="background:${CONFIG.surface_color};">
-                <label class="flex items-center gap-2 cursor-pointer" style="color:${CONFIG.text_color}; font-size:${CONFIG.font_size}px;">
-                  <input type="checkbox" ${state.filterFavorites ? 'checked' : ''}
-                    onchange="state.filterFavorites=this.checked; render();">
-                  ⭐ Favorites Only
-                </label>
               </div>
             </div>
 
@@ -1361,9 +1791,16 @@
         <div class="mt-6">
           <div class="flex items-center justify-between mb-2">
             <label class="font-semibold" style="color:${CONFIG.text_color};">Ingredients</label>
-            <button type="button" onclick="addIngRow()"
-              class="px-3 py-2 rounded button-hover"
-              style="background:${CONFIG.primary_action_color}; color:${CONFIG.text_color};">+ Add</button>
+            <div class="flex gap-2">
+              <button type="button" onclick="showBulkImportModal()"
+                class="px-3 py-2 rounded button-hover"
+                style="background:${CONFIG.secondary_action_color}; color:${CONFIG.text_color}; font-size:${CONFIG.font_size * 0.9}px;">
+                📋 Bulk Import
+              </button>
+              <button type="button" onclick="addIngRow()"
+                class="px-3 py-2 rounded button-hover"
+                style="background:${CONFIG.primary_action_color}; color:${CONFIG.text_color};">+ Add</button>
+            </div>
           </div>
 
           <div class="rounded overflow-hidden" style="border:1px solid rgba(255,255,255,0.08);">
@@ -1528,12 +1965,21 @@
               <!-- Image Preview -->
               ${state.recipeForm.image_url ? `
                 <div class="mt-4 rounded overflow-hidden relative" style="border:1px solid rgba(255,255,255,0.08);">
-                  <img src="${esc(state.recipeForm.image_url)}" style="width:100%; max-height:260px; object-fit:cover;" />
+                  <img src="${state.recipeForm.image_url}" 
+                       alt="Recipe preview"
+                       onerror="this.parentElement.querySelector('.error-msg').style.display='block'; this.style.display='none';"
+                       style="width:100%; max-height:260px; object-fit:cover;" />
+                  <div class="error-msg p-4 text-center" style="display:none; color:#dc2626; background:rgba(220,38,38,0.1);">
+                    ⚠️ Image failed to load. The URL might be invalid or blocked.
+                  </div>
                   <button type="button" onclick="removeImage()"
                     class="absolute top-2 right-2 px-3 py-1.5 rounded button-hover"
                     style="background:rgba(220,38,38,0.9); color:white; font-size:${CONFIG.font_size * 0.85}px;">
                     ✕ Remove
                   </button>
+                </div>
+                <div class="mt-2 p-2 rounded" style="background:rgba(255,255,255,0.05); color:${CONFIG.text_color}; font-size:${CONFIG.font_size * 0.85}px; word-break:break-all;">
+                  <strong>Current URL:</strong> ${state.recipeForm.image_url}
                 </div>` : ''}
             </div>
 
@@ -1601,14 +2047,29 @@ Step 3: Add wet ingredients..."
       // Parse instructions into steps
       const instructionSteps = instructions ? instructions.split('\n').filter(s => s.trim()) : [];
 
+      // Debug: Log image URL
+      console.log('Recipe image URL:', img);
+
       return `
-        <div class="p-6 max-w-5xl mx-auto">
+                  <div class="p-6 max-w-5xl mx-auto">
           <div class="flex items-center justify-between mb-4 mobile-stack gap-3">
-            <button type="button" onclick="state.currentView='recipes'; render();"
+            <button type="button" onclick="state.currentView='${state.viewingFromPlan ? 'weekly-plan' : 'recipes'}'; state.viewingFromPlan=null; render();"
               class="px-4 py-2 rounded button-hover"
               style="background:${CONFIG.secondary_action_color}; color:${CONFIG.text_color};">← Back</button>
 
-            <div class="flex gap-2">
+            <div class="flex gap-2 flex-wrap">
+              ${state.viewingFromPlan ? `
+                <button type="button" onclick="openRecipePicker('${state.viewingFromPlan.date}', '${state.viewingFromPlan.meal}')"
+                  class="px-4 py-2 rounded-xl button-hover"
+                  style="background:${CONFIG.primary_action_color}; color:${CONFIG.text_color};">
+                  🔄 Change Recipe
+                </button>
+                <button type="button" onclick="if(confirm('Remove this meal from your plan?')) { removeMealFromPlan('${state.viewingFromPlan.date}', '${state.viewingFromPlan.meal}'); state.currentView='weekly-plan'; state.viewingFromPlan=null; }"
+                  class="px-4 py-2 rounded-xl button-hover"
+                  style="background:#dc2626; color:white;">
+                  🗑️ Remove from Plan
+                </button>
+              ` : ''}
               ${r.isDraft ? `
                 <button type="button" onclick="publishDraft('${r.__backendId || r.id}')"
                   class="px-4 py-2 rounded button-hover"
@@ -1636,9 +2097,19 @@ Step 3: Add wet ingredients..."
               </button>
             </div>
 
-            ${img ? `<div class="mt-4 rounded overflow-hidden" style="border:1px solid rgba(255,255,255,0.08);">
-              <img src="${esc(img)}" style="width:100%; max-height:260px; object-fit:cover;" />
-            </div>` : ''}
+            ${img ? `
+              <div class="mt-4 rounded overflow-hidden" style="border:1px solid rgba(255,255,255,0.08);">
+                <img src="${img}" 
+                     alt="${esc(r.title)}"
+                     onerror="console.error('Image failed to load:', this.src); this.style.display='none'; this.nextElementSibling.style.display='block';"
+                     onload="console.log('Image loaded successfully:', this.src);"
+                     style="width:100%; max-height:260px; object-fit:cover; display:block;" />
+                <div style="display:none; padding:20px; text-align:center; color:#dc2626; background:rgba(220,38,38,0.1);">
+                  ⚠️ Image failed to load<br>
+                  <small style="font-size:12px; opacity:0.8;">${img}</small>
+                </div>
+              </div>
+            ` : ''}
 
             ${url ? `<div class="mt-4">
               <a href="${esc(url)}" target="_blank" rel="noopener noreferrer"
@@ -1731,16 +2202,19 @@ Step 3: Add wet ingredients..."
 
                     return `
                     <div class="flex items-center justify-between p-3 rounded" style="background:rgba(255,255,255,0.03);">
-                      ${linkStart}
-                        ${img ? `<img src="${esc(img)}" style="width:42px;height:42px;object-fit:cover;border-radius:10px;border:1px solid rgba(255,255,255,0.08);" />` :
-                             `<div style="width:42px;height:42px;border-radius:10px;background:rgba(255,255,255,0.06);"></div>`}
-                        <div>
-                          <div style="color:${CONFIG.text_color}; opacity:.7; font-size:${CONFIG.font_size * .85}px;">${meal}</div>
-                          <div style="color:${CONFIG.text_color}; font-size:${CONFIG.font_size}px;">
-                            ${r ? esc(r.title) : '<span style="opacity:.5;">No meal planned</span>'}
-                          </div>
-                        </div>
-                      ${linkEnd}
+
+                      <div class="flex items-center gap-3 flex-1">
+  ${img ? `<img src="${esc(img)}" style="width:60px;height:60px;object-fit:cover;border-radius:10px;border:1px solid rgba(255,255,255,0.08);" />` :
+     `<div style="width:60px;height:60px;border-radius:10px;background:rgba(255,255,255,0.06);"></div>`}
+
+  
+  <div class="flex-1">
+    <div style="color:${CONFIG.text_color}; opacity:.7; font-size:${CONFIG.font_size * .85}px;">${meal}</div>
+    <div style="color:${CONFIG.text_color}; font-size:${CONFIG.font_size}px;">
+      ${r ? esc(r.title) : '<span style="opacity:.5;">No meal planned</span>'}
+    </div>
+  </div>
+</div>
 
                       <div class="flex gap-2">
                         ${r ? `
@@ -1772,12 +2246,16 @@ Step 3: Add wet ingredients..."
 
     function renderRecipePicker() {
       // Only show published recipes in picker
-      const filteredRecipes = state.recipes.filter(r => {
-        if (r.isDraft) return false; // Exclude drafts
-        if (state.filterFavorites && !r.favorite) return false;
-        if (state.searchTerm && !r.title.toLowerCase().includes(state.searchTerm.toLowerCase())) return false;
-        return r.category === state.selectedCategory;
-      });
+
+
+    const filteredRecipes = state.recipes.filter(r => {
+  if (r.isDraft) return false; // Exclude drafts
+  if (state.filterFavorites && !r.favorite) return false;
+  if (state.filterUserCreated && r.sourceType !== 'user') return false; // ← ADD THIS LINE
+  if (state.searchTerm && !r.title.toLowerCase().includes(state.searchTerm.toLowerCase())) return false;
+  if (state.selectedCategory === 'All') return true;
+  return r.category === state.selectedCategory;
+});
 
       return `
         <div class="p-6 max-w-6xl mx-auto">
@@ -1793,54 +2271,82 @@ Step 3: Add wet ingredients..."
           </div>
 
           <div class="mb-4 flex gap-4 mobile-stack">
-            <input type="text" placeholder="Search recipes..."
-                   style="background: ${CONFIG.surface_color}; color: ${CONFIG.text_color}; border-color: ${CONFIG.secondary_action_color}; font-family: ${CONFIG.font_family}, sans-serif; font-size: ${CONFIG.font_size}px;"
-                   class="flex-1 px-4 py-2 rounded border mobile-full"
-                   value="${state.searchTerm}"
-                   oninput="state.searchTerm = this.value; render();">
+  <input type="text" placeholder="Search recipes..."
+         style="background: ${CONFIG.surface_color}; color: ${CONFIG.text_color}; border-color: ${CONFIG.secondary_action_color}; font-family: ${CONFIG.font_family}, sans-serif; font-size: ${CONFIG.font_size}px;"
+         class="flex-1 px-4 py-2 rounded border mobile-full"
+         value="${state.searchTerm}"
+         oninput="state.searchTerm = this.value; render();">
 
-            <label style="color: ${CONFIG.text_color}; font-family: ${CONFIG.font_family}, sans-serif; font-size: ${CONFIG.font_size}px;" class="flex items-center gap-2">
-              <input type="checkbox" ${state.filterFavorites ? 'checked' : ''}
-                     onchange="state.filterFavorites = this.checked; render();">
-              Favorites Only
-            </label>
-          </div>
+  <label style="color: ${CONFIG.text_color}; font-family: ${CONFIG.font_family}, sans-serif; font-size: ${CONFIG.font_size}px;" class="flex items-center gap-2 whitespace-nowrap">
+    <input type="checkbox" ${state.filterFavorites ? 'checked' : ''}
+           onchange="state.filterFavorites = this.checked; render();">
+    ⭐ Favorites Only
+  </label>
+
+  <label style="color: ${CONFIG.text_color}; font-family: ${CONFIG.font_family}, sans-serif; font-size: ${CONFIG.font_size}px;" class="flex items-center gap-2 whitespace-nowrap">
+    <input type="checkbox" ${state.filterUserCreated ? 'checked' : ''}
+           onchange="state.filterUserCreated = this.checked; render();">
+    👤 User-Created Only
+  </label>
+</div>
 
           <div class="flex gap-2 mb-6 flex-wrap">
-            ${MEAL_CATEGORIES.map(cat => `
-              <button type="button" onclick="state.selectedCategory='${cat}'; render();"
-                      style="background: ${state.selectedCategory === cat ? CONFIG.primary_action_color : CONFIG.secondary_action_color};
-                             color: ${CONFIG.text_color}; font-family: ${CONFIG.font_family}, sans-serif; font-size: ${CONFIG.font_size}px;"
-                      class="px-4 py-2 rounded button-hover">
-                ${cat}
-              </button>
-            `).join('')}
-          </div>
+  <button type="button" onclick="state.selectedCategory='All'; render();"
+          style="background: ${state.selectedCategory === 'All' ? CONFIG.primary_action_color : CONFIG.secondary_action_color};
+                 color: ${CONFIG.text_color}; font-family: ${CONFIG.font_family}, sans-serif; font-size: ${CONFIG.font_size}px;"
+          class="px-4 py-2 rounded button-hover">
+    All
+  </button>
+  ${MEAL_CATEGORIES.map(cat => `
+    <button type="button" onclick="state.selectedCategory='${cat}'; render();"
+            style="background: ${state.selectedCategory === cat ? CONFIG.primary_action_color : CONFIG.secondary_action_color};
+                   color: ${CONFIG.text_color}; font-family: ${CONFIG.font_family}, sans-serif; font-size: ${CONFIG.font_size}px;"
+            class="px-4 py-2 rounded button-hover">
+      ${cat}
+    </button>
+  `).join('')}
+</div>
 
-          <div class="grid gap-3">
-            ${filteredRecipes.length === 0 ? `
-              <div style="background: ${CONFIG.surface_color}; color: ${CONFIG.text_color}; font-family: ${CONFIG.font_family}, sans-serif; font-size: ${CONFIG.font_size}px;"
-                   class="p-8 rounded text-center">
-                No recipes found
-              </div>
-            ` : filteredRecipes.map(recipe => {
-              const sourceLabel = recipe.sourceType === 'chefiq' ? '🤖' : '👤';
-              return `
-              <button type="button"
-                      onclick="handleRecipePickerSelect('${recipe.__backendId || recipe.id}')"
-                      style="background: ${CONFIG.surface_color}; color: ${CONFIG.text_color}; font-family: ${CONFIG.font_family}, sans-serif; font-size: ${CONFIG.font_size}px;"
-                      class="p-4 rounded card-hover text-left w-full flex items-center justify-between">
-                <div class="flex items-center gap-4">
-                  ${recipe.favorite ? '<span style="font-size: 1.25rem;">⭐</span>' : ''}
-                  <span style="font-size: 1.25rem;">${sourceLabel}</span>
-                  <div>
-                    <div class="font-semibold" style="font-size: ${CONFIG.font_size * 1.125}px;">${recipe.title}</div>
-                    <div style="opacity: 0.7; font-size: ${CONFIG.font_size * 0.875}px;">${recipe.category}</div>
-                  </div>
-                </div>
-                <div style="color: ${CONFIG.primary_action_color}; font-size: ${CONFIG.font_size}px;">Select →</div>
-              </button>
-            `}).join('')}
+
+         <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-3">
+  ${filteredRecipes.length === 0 ? `
+    <div style="background: ${CONFIG.surface_color}; color: ${CONFIG.text_color}; font-family: ${CONFIG.font_family}, sans-serif; font-size: ${CONFIG.font_size}px;"
+         class="p-8 rounded text-center col-span-full">
+      No recipes found
+    </div>
+  ` : filteredRecipes.map(recipe => {
+  const sourceLabel = recipe.sourceType === 'chefiq' ? '🤖' : '👤';
+  const img = recipeThumb(recipe);
+  return `
+
+<button type="button"
+        onclick="handleRecipePickerSelect('${recipe.__backendId || recipe.id}')"
+        style="background: ${CONFIG.surface_color}; color: ${CONFIG.text_color}; font-family: ${CONFIG.font_family}, sans-serif; font-size: ${CONFIG.font_size}px;"
+        class="p-4 rounded card-hover text-left w-full flex flex-col gap-3">
+  ${img ? `
+    <img src="${esc(img)}" 
+         alt="${esc(recipe.title)}"
+         style="width: 100%; height: 150px; object-fit: cover; border-radius: 8px; border: 1px solid rgba(255,255,255,0.08);"
+         onerror="this.style.display='none';" />
+  ` : `
+    <div style="width: 100%; height: 150px; background: rgba(255,255,255,0.03); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 3rem;">🍽️</div>
+  `}
+  <div class="flex items-center gap-2 flex-wrap">
+    ${recipe.favorite ? '<span style="font-size: 1rem;">⭐</span>' : ''}
+    <span style="font-size: 1rem;">${sourceLabel}</span>
+    <div style="opacity: 0.6; font-size: ${CONFIG.font_size * 0.8}px;">${recipe.category}</div>
+  </div>
+  <div class="font-semibold" style="font-size: ${CONFIG.font_size * 1.05}px; line-height: 1.3;">${recipe.title}</div>
+  <div style="color: ${CONFIG.primary_action_color}; font-size: ${CONFIG.font_size * 0.9}px; text-align: center; padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.08);">
+    Select →
+  </div>
+</button>
+  
+`}).join('')}
+
+
+
+           
           </div>
         </div>
       `;
@@ -2004,6 +2510,7 @@ Step 3: Add wet ingredients..."
     // ===== MAIN RENDER =====
     function render() {
       const app = document.getElementById('app');
+      if (!app) return;
 
       let content = '';
       switch (state.currentView) {
@@ -2039,7 +2546,7 @@ Step 3: Add wet ingredients..."
       }
 
       app.innerHTML = `
-        <div style="background: ${CONFIG.background_color}; min-height: 100%;">
+        <div style="background: ${CONFIG.background_color}; min-height: 100vh;">
           ${renderNav()}
           ${content}
         </div>
