@@ -1941,8 +1941,10 @@ function navigateTo(view) {
     function renderMealOptionsRecipePicker() {
       let recipes = state.recipes.filter(r => !r.isDraft && !r.isTip);
       
-      // Filter by category if one was selected
-      if (state.selectedMealOptionCategory) {
+    // Filter by selected category (from buttons or from "Add" button per category)
+      if (state.selectedCategory !== 'All') {
+        recipes = recipes.filter(r => r.category === state.selectedCategory);
+      } else if (state.selectedMealOptionCategory) {
         recipes = recipes.filter(r => r.category === state.selectedMealOptionCategory);
       }
       
@@ -1957,6 +1959,25 @@ function navigateTo(view) {
               class="px-4 py-2 rounded button-hover">
               ← Back
             </button>
+          </div>
+
+          <div class="mb-4">
+            <div class="flex gap-2 flex-wrap">
+              <button type="button" 
+                onclick="state.selectedCategory = 'All'; render();"
+                class="px-4 py-2 rounded button-hover"
+                style="background: ${state.selectedCategory === 'All' ? CONFIG.primary_action_color : CONFIG.surface_color}; color: ${CONFIG.text_color}; font-size: ${CONFIG.font_size * 0.9}px;">
+                All
+              </button>
+              ${['Breakfast', 'Lunch', 'Vegetables', 'Dinner', 'Appetizer'].map(cat => `
+                <button type="button" 
+                  onclick="state.selectedCategory = '${cat}'; render();"
+                  class="px-4 py-2 rounded button-hover"
+                  style="background: ${state.selectedCategory === cat ? CONFIG.primary_action_color : CONFIG.surface_color}; color: ${CONFIG.text_color}; font-size: ${CONFIG.font_size * 0.9}px;">
+                  ${cat}
+                </button>
+              `).join('')}
+            </div>
           </div>
 
           <div class="grid md:grid-cols-2 xl:grid-cols-3 gap-4">
