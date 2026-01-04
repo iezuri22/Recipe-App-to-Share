@@ -271,12 +271,13 @@
       font_size: 16,
       app_title: "Meal Planner",
       recipes_label: "My Recipes",
-      weekly_plan_label: "Weekly Plan",
+      weekly_plan_label: "Meal History",
       grocery_list_label: "Grocery List"
     };
 
     const ING_GROUPS = ['Produce', 'Beef', 'Poultry', 'Pork', 'Lamb & Goat', 'Seafood', 'Dairy & Eggs', 'Grains & Pasta', 'Pantry', 'Spices & Seasonings', 'Prepared', 'Other'];
-    const MEAL_CATEGORIES = ['Breakfast', 'Lunch', 'Dinner', 'Appetizer'];
+const MEAL_CATEGORIES = ['Breakfast', 'Lunch', 'Vegetables', 'Dinner', 'Appetizer'];
+    const TIP_CATEGORIES = ['Prep Techniques', 'Cleaning & Washing', 'Cutting & Slicing', 'Defrosting', 'Seasoning', 'Cooking Methods', 'Storage', 'Other'];
     const SOURCE_TYPES = ['user', 'chefiq'];
     const STORAGE_KEY = 'meal_planner_data_v1';
 
@@ -285,10 +286,10 @@
     const state = {
   recipes: [],
   planData: [],
-  mealSelections: [],
+ mealSelections: [],
   groceryItems: [],
-  externalMealTypes: ['Eating Out', 'Takeout/Delivery', 'Leftovers', 'At Family/Friends', 'Work Lunch', 'Meal Prep'],
-  currentView: 'home',
+  mealOptions: [],
+  externalMealTypes: ['Eating Out', 'Takeout/Delivery', 'Leftovers', 'At Family/Friends', 'Work Lunch', 'Meal Prep'], currentView: 'home',
   recipeForm: null,
   selectedDayForRecipe: null,
   selectedMealForRecipe: null,
@@ -298,8 +299,8 @@
   filterFavorites: false,
   filterUserCreated: false,  // ← ADD THIS LINE
   filterSourceType: 'all',
-  filterIngredientGroup: 'all',
-  showDrafts: false,
+filterIngredientGroup: 'all',
+  showTips: false,
   selectedGroceryDate: null,
   selectedGroceryMeal: null,
   selectedGroceryRecipeId: null,
@@ -668,6 +669,7 @@ currentWeekStartDate: (() => {
     type: 'recipe',
     title: '',
     category: 'Breakfast',
+    tipCategory: 'Prep Techniques',
     recipe_url: '',
     image_url: '',
     tags: '',
@@ -675,8 +677,9 @@ currentWeekStartDate: (() => {
     instructions: '',
     ingredientsRows: [{ qty: '', unit: '', name: '', group: 'Produce' }],
     sourceType: 'chefiq',
-    isDraft: false,
-    timesCooked: 0  // ← ADD THIS LINE
+  isDraft: false,
+    isTip: false,
+    timesCooked: 0
   };
 }
 
@@ -961,9 +964,10 @@ currentWeekStartDate: (() => {
       render();
     }
 
-    function openNewDraft() {
+   function openNewTip() {
       state.recipeForm = newRecipeDraft();
-      state.recipeForm.isDraft = true;
+      state.recipeForm.isTip = true;
+      state.recipeForm.category = 'Prep Techniques';
       state.currentView = 'recipe-edit';
       render();
     }
@@ -988,7 +992,7 @@ currentWeekStartDate: (() => {
   navigateTo('recipes');
 }
 
-  function openRecipeView(id, fromPlan = null, fromStats = false) {
+ function openRecipeView(id, fromPlan = null, fromStats = false, fromTips = false) {
   // Save scroll position before navigating
   const app = document.getElementById('app');
   if (app && state.currentView) {
@@ -998,6 +1002,7 @@ currentWeekStartDate: (() => {
   state.selectedRecipeViewId = id;
   state.viewingFromPlan = fromPlan; // {date, meal} or null
   state.viewingFromStats = fromStats; // true if coming from recipe-stats
+  state.viewingFromTips = fromTips; // true if coming from tips page
   state.currentView = 'recipe-view';
   render();
   
@@ -1015,9 +1020,9 @@ currentWeekStartDate: (() => {
       const cat = (state.recipeForm.category || '').trim();
       const url = (state.recipeForm.recipe_url || '').trim();
 
-      if (!title) return showError('Recipe Title is required.');
+      if (!title) return showError(state.recipeForm.isTip ? 'Tip Title is required.' : 'Recipe Title is required.');
       if (!cat) return showError('Category is required.');
-      if (!url) return showError('Recipe URL is required.');
+      if (!state.recipeForm.isTip && !url) return showError('Recipe URL is required.');
 
       const rows = (state.recipeForm.ingredientsRows || [])
         .map(r => ({
@@ -1028,8 +1033,7 @@ currentWeekStartDate: (() => {
         }))
         .filter(r => r.name);
 
-      if (!rows.length) return showError('Add at least 1 ingredient.');
-
+if (!state.recipeForm.isTip && !rows.length) return showError('Add at least 1 ingredient.');
       const payload = {
         ...state.recipeForm,
         title,
@@ -1051,26 +1055,25 @@ currentWeekStartDate: (() => {
           payload.id = `recipe_${Date.now()}_${Math.random().toString(36).slice(2)}`;
           await storage.create(payload);
         }
-        showToast(payload.isDraft ? 'Draft saved!' : 'Recipe saved!', 'success');
-        closeRecipeEditor();
+showToast(payload.isTip ? 'Tip saved!' : 'Recipe saved!', 'success');        closeRecipeEditor();
       } catch (e) {
         console.error(e);
         showError('Failed to save recipe.');
       }
     }
 
-    async function publishDraft(recipeId) {
+  async function publishTip(recipeId) {
       const recipe = getRecipeById(recipeId);
       if (!recipe) return;
 
-      const updatedRecipe = { ...recipe, isDraft: false };
+      const updatedRecipe = { ...recipe, isTip: false };
       
       try {
         await storage.update(updatedRecipe);
-        showToast('Draft published!', 'success');
+        showToast('Tip converted to recipe!', 'success');
       } catch (e) {
         console.error(e);
-        showError('Failed to publish draft.');
+        showError('Failed to convert tip.');
       }
     }
 
@@ -1104,26 +1107,81 @@ currentWeekStartDate: (() => {
       }
     }
 
-    async function markAsCooked(recipeId) {
+  function markAsCooked(recipeId) {
+      const recipe = getRecipeById(recipeId);
+      if (!recipe) return;
+
+      const today = new Date().toISOString().split('T')[0];
+
+      openModal(`
+        <div style="color: #1a1a2e;">
+          <h2 class="text-2xl font-bold mb-4">Mark as Cooked</h2>
+          <p class="mb-4">When did you cook <strong>${esc(recipe.title)}</strong>?</p>
+          
+          <div class="mb-4">
+            <label class="block mb-2 font-semibold">Date:</label>
+            <input type="date" id="cookDate" value="${today}" 
+                   class="w-full px-3 py-2 border rounded" />
+          </div>
+
+          <div class="mb-4">
+            <label class="block mb-2 font-semibold">Meal Type:</label>
+            <select id="cookMealType" class="w-full px-3 py-2 border rounded">
+              <option value="breakfast">Breakfast</option>
+              <option value="lunch">Lunch</option>
+              <option value="dinner" selected>Dinner</option>
+            </select>
+          </div>
+
+          <div class="flex gap-2 justify-end">
+            <button onclick="closeModal()" class="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400">
+              Cancel
+            </button>
+            <button onclick="saveCookedMeal('${recipeId}')" 
+                    class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
+              Save to Meal History
+            </button>
+          </div>
+        </div>
+      `);
+    }
+
+    async function saveCookedMeal(recipeId) {
+      const dateInput = document.getElementById('cookDate');
+      const mealTypeSelect = document.getElementById('cookMealType');
+      
+      const date = dateInput.value;
+      const mealType = mealTypeSelect.value;
+
+      if (!date) {
+        showError('Please select a date');
+        return;
+      }
+
       const recipe = getRecipeById(recipeId);
       if (!recipe) return;
 
       state.isLoading = true;
+      closeModal();
       render();
 
-      const updatedRecipe = { 
-        ...recipe, 
-        timesCooked: (recipe.timesCooked || 0) + 1 
-      };
-      
-      const result = await storage.update(updatedRecipe);
-      state.isLoading = false;
+      try {
+        // Update cook count
+        const updatedRecipe = { 
+          ...recipe, 
+          timesCooked: (recipe.timesCooked || 0) + 1 
+        };
+        await storage.update(updatedRecipe);
 
-      if (result.isOk) {
-        showToast(`Marked as cooked! Total: ${updatedRecipe.timesCooked}`, 'success');
-        render();
-      } else {
-        showError('Failed to update cook count');
+        // Add to meal history
+        await savePlan(date, mealType.charAt(0).toUpperCase() + mealType.slice(1), recipeId);
+
+        showToast(`Added to ${date} ${mealType}!`, 'success');
+      } catch (e) {
+        console.error(e);
+        showError('Failed to save');
+      } finally {
+        state.isLoading = false;
         render();
       }
     }
@@ -1158,7 +1216,7 @@ currentWeekStartDate: (() => {
 }
 
     // ===== MEAL PLANNING =====
-  async function savePlan(date, meal, recipeId) {
+async function savePlan(date, meal, recipeId) {
       const planId = `plan_${date}`;
       let plan = state.planData.find(p => p.date === date);
 
@@ -1169,16 +1227,8 @@ currentWeekStartDate: (() => {
 
       try {
         if (plan) {
-          // Check if already at max (2 meals)
+          // Add to array (no limit)
           const currentMeals = plan[mealKey] || [];
-          if (currentMeals.length >= 2) {
-            showError('Maximum 2 meals per slot');
-            state.isLoading = false;
-            render();
-            return;
-          }
-          
-          // Add to array
           const updatedMeals = [...currentMeals, recipeId];
           const updatedPlan = { ...plan, [mealKey]: updatedMeals };
           await storage.update(updatedPlan);
@@ -1202,7 +1252,7 @@ currentWeekStartDate: (() => {
       }
     }
 
-    async function saveExternalMeal(date, meal, externalType) {
+   async function saveExternalMeal(date, meal, externalType) {
       const planId = `plan_${date}`;
       let plan = state.planData.find(p => p.date === date);
 
@@ -1214,16 +1264,8 @@ currentWeekStartDate: (() => {
 
       try {
         if (plan) {
-          // Check if already at max (2 meals)
+          // Add to array (no limit)
           const currentMeals = plan[mealKey] || [];
-          if (currentMeals.length >= 2) {
-            showError('Maximum 2 meals per slot');
-            state.isLoading = false;
-            render();
-            return;
-          }
-          
-          // Add to array
           const updatedMeals = [...currentMeals, externalMealId];
           const updatedPlan = { ...plan, [mealKey]: updatedMeals };
           await storage.update(updatedPlan);
@@ -1328,30 +1370,17 @@ currentWeekStartDate: (() => {
     }
 
     // ===== GROCERY LIST =====
- function getPlannedMealsForWeek(weekStart) {
-      const weekDates = getWeekDates(weekStart);
+function getPlannedMealsForWeek(weekStart) {
       const meals = [];
 
-      weekDates.forEach(date => {
-        const plan = state.planData.find(p => p.date === date);
-        if (plan) {
-          ['breakfast', 'lunch', 'dinner'].forEach(mealType => {
-            const mealArray = plan[mealType] || [];
-            mealArray.forEach(recipeId => {
-              const recipe = getRecipeById(recipeId);
-              if (recipe) {
-                const isExternal = recipe.type === 'external';
-                // Only add non-external meals (meals with actual ingredients)
-                if (!isExternal) {
-                  meals.push({
-                    date: date,
-                    meal: mealType.charAt(0).toUpperCase() + mealType.slice(1),
-                    recipeId: recipeId,
-                    recipeTitle: recipe.title
-                  });
-                }
-              }
-            });
+      state.mealOptions.forEach(option => {
+        const recipe = getRecipeById(option.recipeId);
+        if (recipe && recipe.type !== 'external') {
+          meals.push({
+            date: 'meal-option',
+            meal: option.category,
+            recipeId: option.recipeId,
+            recipeTitle: recipe.title
           });
         }
       });
@@ -1367,6 +1396,19 @@ currentWeekStartDate: (() => {
         const meal = parts[2];
         const recipeIdFromSel = parts.slice(3).join('_'); // Handle recipe IDs that might contain underscores
         
+      // Handle manual items
+        if (recipeIdFromSel === 'manual' && sel.manualItem) {
+          const k = normalizeIngredient(sel.manualItem.name);
+          aggregated[k] = {
+            name: sel.manualItem.name,
+            quantity: '',
+            unit: '',
+            group: sel.manualItem.group || 'Other',
+            checked: false
+          };
+          return;
+        }
+
         const r = getRecipeById(recipeIdFromSel);
         if (!r) return;
 
@@ -1393,9 +1435,27 @@ currentWeekStartDate: (() => {
         });
       });
 
-      Object.keys(aggregated).forEach(k => {
+   Object.keys(aggregated).forEach(k => {
         const gi = state.groceryItems.find(x => x.ingredientKey === k);
         aggregated[k].checked = gi ? !!gi.checked : false;
+      });
+
+      // Get all manual items from mealSelections
+      state.mealSelections.forEach(sel => {
+        if (sel.meal === 'manual' && sel.manualItem) {
+          const k = normalizeIngredient(sel.manualItem.name);
+          if (!aggregated[k]) {
+            aggregated[k] = {
+              name: sel.manualItem.name,
+              quantity: '',
+              unit: '',
+              group: sel.manualItem.group || 'Other',
+              checked: false
+            };
+            const gi = state.groceryItems.find(x => x.ingredientKey === k);
+            aggregated[k].checked = gi ? !!gi.checked : false;
+          }
+        }
       });
 
       return Object.values(aggregated);
@@ -1623,9 +1683,10 @@ currentWeekStartDate: (() => {
           };
         });
         
-        state.planData = planData;
+       state.planData = planData;
         state.mealSelections = data.filter(d => d.id && d.id.startsWith('mealSel_'));
         state.groceryItems = data.filter(d => d.ingredientKey);
+        state.mealOptions = data.filter(d => d.id && d.id.startsWith('mealOption_'));
         const externalMealConfig = data.find(d => d.id === 'config_externalMealTypes');
         if (externalMealConfig) {
           state.externalMealTypes = externalMealConfig.types || state.externalMealTypes;
@@ -1640,6 +1701,13 @@ function navigateTo(view) {
   const app = document.getElementById('app');
   if (app && state.currentView) {
     state.scrollPositions[state.currentView] = app.scrollTop;
+  }
+  
+  // Clear viewing flags when navigating
+  if (view !== 'recipe-view') {
+    state.viewingFromPlan = null;
+    state.viewingFromStats = false;
+    state.viewingFromTips = false;
   }
   
  state.currentView = view;
@@ -1670,20 +1738,30 @@ function navigateTo(view) {
               <span class="app-title">${CONFIG.app_title}</span>
             </button>
             <div class="flex gap-3 flex-wrap items-center">
-             <button type="button" onclick="navigateTo('recipes')"
+           <button type="button" onclick="navigateTo('recipes')"
                       style="color: ${CONFIG.text_color}; font-family: ${CONFIG.font_family}; font-size: ${CONFIG.font_size}px;"
-                      class="button-hover px-3 py-2 rounded-lg ${state.currentView.includes('recipe') && state.currentView !== 'recipe-stats' ? 'glass' : ''}">
+                      class="button-hover px-3 py-2 rounded-lg ${state.currentView === 'recipes' ? 'glass' : ''}">
                 📚 ${CONFIG.recipes_label}
+              </button>
+              <button type="button" onclick="navigateTo('meal-options')"
+                      style="color: ${CONFIG.text_color}; font-family: ${CONFIG.font_family}; font-size: ${CONFIG.font_size}px;"
+                      class="button-hover px-3 py-2 rounded-lg ${state.currentView === 'meal-options' ? 'glass' : ''}">
+                📋 Meal Options
+              </button>
+              <button type="button" onclick="navigateTo('weekly-plan')"
+                      style="color: ${CONFIG.text_color}; font-family: ${CONFIG.font_family}; font-size: ${CONFIG.font_size}px;"
+                      class="button-hover px-3 py-2 rounded-lg ${state.currentView === 'weekly-plan' ? 'glass' : ''}">
+                📅 Meal History
+              </button>
+              <button type="button" onclick="navigateTo('tips')"
+                      style="color: ${CONFIG.text_color}; font-family: ${CONFIG.font_family}; font-size: ${CONFIG.font_size}px;"
+                      class="button-hover px-3 py-2 rounded-lg ${state.currentView === 'tips' ? 'glass' : ''}">
+                📝 Tips & Notes
               </button>
               <button type="button" onclick="navigateTo('recipe-stats')"
                       style="color: ${CONFIG.text_color}; font-family: ${CONFIG.font_family}; font-size: ${CONFIG.font_size}px;"
                       class="button-hover px-3 py-2 rounded-lg ${state.currentView === 'recipe-stats' ? 'glass' : ''}">
                 👨‍🍳 Most Cooked
-              </button>
-              <button type="button" onclick="navigateTo('weekly-plan')"
-                      style="color: ${CONFIG.text_color}; font-family: ${CONFIG.font_family}; font-size: ${CONFIG.font_size}px;"
-                      class="button-hover px-3 py-2 rounded-lg ${state.currentView === 'weekly-plan' ? 'glass' : ''}">
-                📅 ${CONFIG.weekly_plan_label}
               </button>
               <button type="button" onclick="navigateTo('grocery-list')"
                       style="color: ${CONFIG.text_color}; font-family: ${CONFIG.font_family}; font-size: ${CONFIG.font_size}px;"
@@ -1701,6 +1779,323 @@ function navigateTo(view) {
         </nav>
       `;
     }
+   function openMealOptionsRecipePicker() {
+      state.selectedMealOptionCategory = null;
+      state.currentView = 'meal-options-recipe-picker';
+      render();
+    }
+
+    function openMealOptionsRecipePickerForCategory(category) {
+      state.selectedMealOptionCategory = category;
+      state.currentView = 'meal-options-recipe-picker';
+      render();
+    }
+
+    async function addToMealOptions(recipeId, category) {
+      const optionId = `mealOption_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+      const option = {
+        id: optionId,
+        recipeId: recipeId,
+        category: category
+      };
+
+      state.isLoading = true;
+      render();
+
+      try {
+        await storage.create(option);
+        showToast('Added to meal options!', 'success');
+      } finally {
+        state.isLoading = false;
+        navigateTo('meal-options');
+      }
+    }
+
+    async function removeMealOption(optionId) {
+      const option = state.mealOptions.find(o => o.id === optionId);
+      if (!option) return;
+
+      state.isLoading = true;
+      render();
+
+      try {
+        await storage.delete(option);
+        showToast('Removed from meal options', 'success');
+      } finally {
+        state.isLoading = false;
+        render();
+      }
+    }
+
+    async function clearAllMealOptions() {
+      state.isLoading = true;
+      render();
+
+      try {
+        for (const option of state.mealOptions) {
+          await storage.delete(option);
+        }
+        showToast('All meal options cleared!', 'success');
+      } finally {
+        state.isLoading = false;
+        render();
+      }
+    }
+
+    function renderMealOptions() {
+      const categories = ['Breakfast', 'Lunch', 'Vegetables', 'Dinner', 'Appetizer'];
+      
+      return `
+        <div class="p-6 max-w-7xl mx-auto fade-in">
+          <div class="flex items-center justify-between mb-6 mobile-stack gap-3">
+            <div>
+              <h2 class="font-bold flex items-center gap-2" style="color:${CONFIG.text_color}; font-size:${CONFIG.font_size * 1.8}px;">
+                <span>📋</span> Meal Options
+              </h2>
+              <p style="color:${CONFIG.text_color}; opacity:0.6; font-size:${CONFIG.font_size * 0.95}px; margin-top:4px;">
+                Your recipe pool for the week
+              </p>
+            </div>
+            <div class="flex gap-2">
+              <button type="button" onclick="openMealOptionsRecipePicker()"
+                class="px-5 py-2.5 rounded-xl button-hover flex items-center gap-2"
+                style="background:${CONFIG.primary_action_color}; color:${CONFIG.text_color}; font-size:${CONFIG.font_size}px; box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);">
+                <span>➕</span> Add Recipe
+              </button>
+              ${state.mealOptions.length > 0 ? `
+                <button type="button" onclick="if(confirm('Clear all meal options?')) clearAllMealOptions()"
+                  class="px-5 py-2.5 rounded-xl button-hover flex items-center gap-2"
+                  style="background:#dc2626; color:white; font-size:${CONFIG.font_size}px;">
+                  <span>🗑️</span> Clear All
+                </button>
+              ` : ''}
+            </div>
+          </div>
+
+          <div class="space-y-6">
+            ${categories.map(category => {
+              const options = state.mealOptions.filter(opt => opt.category === category);
+              
+              return `
+                <div>
+                  <div class="flex items-center justify-between mb-3">
+                    <h3 class="font-semibold flex items-center gap-2" style="color:${CONFIG.text_color}; font-size:${CONFIG.font_size * 1.2}px;">
+                      ${category} <span style="opacity:0.6; font-size:${CONFIG.font_size * 0.9}px;">(${options.length})</span>
+                    </h3>
+                    <button type="button" onclick="openMealOptionsRecipePickerForCategory('${category}')"
+                      class="px-3 py-1.5 rounded button-hover"
+                      style="background:${CONFIG.primary_action_color}; color:${CONFIG.text_color}; font-size:${CONFIG.font_size * 0.85}px;">
+                      ➕ Add
+                    </button>
+                  </div>
+                  
+                  ${options.length === 0 ? `
+                    <div class="p-6 rounded text-center" style="background:${CONFIG.surface_color}; color:${CONFIG.text_color}; opacity:0.6;">
+                      No ${category.toLowerCase()} options added yet
+                    </div>
+                  ` : `
+                    <div style="display:flex; gap:12px; overflow-x:auto; padding-bottom:8px;">
+                      ${options.map(opt => {
+                        const recipe = getRecipeById(opt.recipeId);
+                        if (!recipe) return '';
+                        
+                        const img = recipeThumb(recipe);
+                        
+                       return `
+                          <div style="min-width:150px; max-width:150px; background:${CONFIG.surface_color}; border:1px solid rgba(255,255,255,0.08); border-radius:12px; overflow:hidden; flex-shrink:0;"
+                               class="card-hover">
+                            ${img ? `
+                              <div style="height:100px; overflow:hidden; cursor:pointer;" onclick="openRecipeView('${recipe.__backendId || recipe.id}')"><img src="${esc(img)}" style="width:100%; height:100%; object-fit:cover;" />
+                              </div>
+                            ` : `
+                              <div style="height:100px; background:rgba(255,255,255,0.03); display:flex; align-items:center; justify-content:center; font-size:2rem; cursor:pointer;"
+                                   onclick="openRecipeView('${recipe.__backendId || recipe.id}')">
+                                🍽️
+                              </div>
+                            `}
+                            
+                            <div style="padding:12px;">
+                              <div style="color:${CONFIG.text_color}; font-size:${CONFIG.font_size * 0.95}px; font-weight:600; margin-bottom:8px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+                                ${esc(recipe.title)}
+                              </div>
+                              
+                              <button type="button" onclick="removeMealOption('${opt.id}')"
+                                class="w-full px-3 py-1.5 rounded button-hover"
+                                style="background:#dc2626; color:white; font-size:${CONFIG.font_size * 0.85}px;">
+                                Remove
+                              </button>
+                            </div>
+                          </div>
+                        `;
+                      }).join('')}
+                    </div>
+                  `}
+                </div>
+              `;
+            }).join('')}
+          </div>
+        </div>
+      `;
+    }
+
+    function renderMealOptionsRecipePicker() {
+      let recipes = state.recipes.filter(r => !r.isDraft && !r.isTip);
+      
+      // Filter by category if one was selected
+      if (state.selectedMealOptionCategory) {
+        recipes = recipes.filter(r => r.category === state.selectedMealOptionCategory);
+      }
+      
+      return `
+        <div class="p-6 max-w-6xl mx-auto">
+          <div class="flex items-center justify-between mb-6 mobile-stack gap-3">
+            <h2 style="color: ${CONFIG.text_color}; font-size: ${CONFIG.font_size * 1.5}px; font-family: ${CONFIG.font_family}, sans-serif;" class="font-bold">
+              Add to Meal Options
+            </h2>
+           <button type="button" onclick="navigateTo('meal-options')"
+              style="background: ${CONFIG.secondary_action_color}; color: ${CONFIG.text_color}; font-family: ${CONFIG.font_family}, sans-serif; font-size: ${CONFIG.font_size}px;"
+              class="px-4 py-2 rounded button-hover">
+              ← Back
+            </button>
+          </div>
+
+          <div class="grid md:grid-cols-2 xl:grid-cols-3 gap-4">
+            ${recipes.map(r => {
+              const id = r.__backendId || r.id;
+              const img = recipeThumb(r);
+              
+              return `
+                <div class="rounded-lg overflow-hidden"
+                  style="background:${CONFIG.surface_color}; border:1px solid rgba(255,255,255,0.08);">
+                  
+                  ${img ? `
+                    <div style="height:140px; overflow:hidden;">
+                      <img src="${esc(img)}" style="width:100%; height:100%; object-fit:cover;" />
+                    </div>
+                  ` : `
+                    <div style="height:140px; background:rgba(255,255,255,0.03); display:flex; align-items:center; justify-content:center; font-size:3rem;">
+                      🍽️
+                    </div>
+                  `}
+
+                  <div class="p-4">
+                    <div class="font-semibold mb-2" style="color:${CONFIG.text_color}; font-size:${CONFIG.font_size * 1.05}px;">
+                      ${esc(r.title)}
+                    </div>
+                    <div style="color:${CONFIG.text_color}; opacity:.65; font-size:${CONFIG.font_size * .85}px; margin-bottom:12px;">
+                      ${esc(r.category)}
+                    </div>
+                    
+                    <button type="button" onclick="addToMealOptions('${id}', '${r.category}')"
+                      class="w-full px-3 py-2 rounded button-hover"
+                      style="background:${CONFIG.primary_action_color}; color:${CONFIG.text_color}; font-size:${CONFIG.font_size * 0.9}px;">
+                      Add to ${r.category}
+                    </button>
+                  </div>
+                </div>
+              `;
+            }).join('')}
+          </div>
+        </div>
+      `;
+    }
+
+  function renderTips() {
+      const tips = state.recipes.filter(r => r.isTip);
+      
+      return `
+        <div class="p-6 max-w-7xl mx-auto fade-in">
+          <div class="flex items-center justify-between mb-6 mobile-stack gap-3">
+            <div>
+              <h2 class="font-bold flex items-center gap-2" style="color:${CONFIG.text_color}; font-size:${CONFIG.font_size * 1.8}px;">
+                <span>📝</span> Tips & Cooking Notes
+              </h2>
+              <p style="color:${CONFIG.text_color}; opacity:0.6; font-size:${CONFIG.font_size * 0.95}px; margin-top:4px;">
+                ${tips.length} tips saved
+              </p>
+            </div>
+            <button type="button" onclick="openNewTip()"
+              class="px-5 py-2.5 rounded-xl button-hover flex items-center gap-2"
+              style="background:${CONFIG.secondary_action_color}; color:${CONFIG.text_color}; font-size:${CONFIG.font_size}px; box-shadow: 0 2px 8px rgba(118, 75, 162, 0.3);">
+              <span>➕</span> Add Tip
+            </button>
+          </div>
+
+          ${tips.length === 0 ? `
+            <div class="p-12 rounded text-center" style="background:${CONFIG.surface_color}; color:${CONFIG.text_color};">
+              <div style="font-size:3rem; margin-bottom:1rem;">📝</div>
+              <div style="font-size:${CONFIG.font_size * 1.2}px; margin-bottom:0.5rem;">
+                No tips yet
+              </div>
+              <div style="opacity:0.7; font-size:${CONFIG.font_size * 0.9}px;">
+                Start saving cooking techniques, prep instructions, and helpful notes
+              </div>
+            </div>
+          ` : `
+            <div class="grid md:grid-cols-2 xl:grid-cols-3 gap-4">
+              ${tips.map(r => {
+                const id = r.__backendId || r.id;
+                const img = recipeThumb(r);
+                
+                return `
+               <div class="rounded-lg overflow-hidden card-hover cursor-pointer"
+                  onclick="${r.recipe_url ? `window.open('${esc(r.recipe_url)}', '_blank')` : `openRecipeView('${id}')`}"
+                  style="background:${CONFIG.surface_color}; border:1px solid rgba(255,255,255,0.08);">
+                  
+                  ${img ? `
+                    <div style="height:140px; overflow:hidden;">
+                      <img src="${esc(img)}" style="width:100%; height:100%; object-fit:cover;" />
+                    </div>
+                  ` : `
+                    <div style="height:140px; background:rgba(255,255,255,0.03); display:flex; align-items:center; justify-content:center; font-size:3rem;">
+                      📝
+                    </div>
+                  `}
+
+                  <div class="p-4">
+                    <div class="flex items-start justify-between gap-2 mb-2">
+                      <div class="flex-1">
+                        <div class="font-semibold" style="color:${CONFIG.text_color}; font-size:${CONFIG.font_size * 1.05}px; line-height:1.3;">
+                          ${esc(r.title)}
+                        </div>
+                        <div style="color:#667eea; font-size:${CONFIG.font_size * .8}px; font-weight:600; margin-top:4px;">
+                          📝 TIP
+                        </div>
+                      </div>
+                      <button type="button" class="text-xl"
+                        onclick="event.stopPropagation(); toggleFavorite('${id}')">
+                        ${r.favorite ? '⭐' : '☆'}
+                      </button>
+                    </div>
+
+                   <div class="flex gap-2 mt-3">
+                      <button type="button"
+                        onclick="event.stopPropagation(); openRecipeView('${id}', null, false, true)"
+                        class="flex-1 px-2 py-1.5 rounded button-hover text-center"
+                        style="background:${CONFIG.primary_action_color}; color:${CONFIG.text_color}; font-size:${CONFIG.font_size * .85}px;">
+                        View
+                      </button>
+                      <button type="button"
+                        onclick="event.stopPropagation(); openEditRecipe('${id}')"
+                        class="flex-1 px-2 py-1.5 rounded button-hover text-center"
+                        style="background:${CONFIG.secondary_action_color}; color:${CONFIG.text_color}; font-size:${CONFIG.font_size * .85}px;">
+                        Edit
+                      </button>
+                      <button type="button"
+                        onclick="event.stopPropagation(); if(confirm('Delete this tip?')) deleteRecipe(state.recipes.find(x=>(x.__backendId||x.id)==='${id}'))"
+                        class="flex-1 px-2 py-1.5 rounded button-hover text-center"
+                        style="background:#dc2626; color:white; font-size:${CONFIG.font_size * .85}px;">
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                </div>`;
+              }).join('')}
+            </div>
+          `}
+        </div>
+      `;
+    }
 
     function renderRecipeStats() {
   // Add filter state if it doesn't exist
@@ -1708,9 +2103,9 @@ function navigateTo(view) {
     state.showOnlyCookedRecipes = true; // Default to showing only cooked recipes
   }
   
-  // Get all published recipes sorted by times cooked
+// Get all published recipes sorted by times cooked
   let sortedRecipes = state.recipes
-    .filter(r => !r.isDraft)
+    .filter(r => !r.isDraft && !r.isTip)
     .sort((a, b) => (b.timesCooked || 0) - (a.timesCooked || 0));
   
   // Apply filter if enabled
@@ -1913,7 +2308,7 @@ function navigateTo(view) {
             </button>
           </div>
         </div>
-     `);
+   `);
     }
 
     function showManageExternalMealTypes() {
@@ -2027,19 +2422,19 @@ function navigateTo(view) {
               </div>
             </button>
 
-            <button type="button" onclick="navigateTo('weekly-plan')"
+           <button type="button" onclick="navigateTo('meal-options')"
                     style="background: linear-gradient(135deg, ${CONFIG.surface_color} 0%, rgba(118, 75, 162, 0.1) 100%);"
                     class="p-8 rounded-2xl card-hover text-center glass">
-              <div style="font-size: 4rem;" class="mb-4">📅</div>
+              <div style="font-size: 4rem;" class="mb-4">📋</div>
               <h3 style="color: ${CONFIG.text_color}; font-size: ${CONFIG.font_size * 1.4}px; font-family: ${CONFIG.font_family};"
                   class="font-bold mb-3">
-                ${CONFIG.weekly_plan_label}
+                Meal Options
               </h3>
               <p style="color: ${CONFIG.text_color}; opacity: 0.7; font-size: ${CONFIG.font_size}px; font-family: ${CONFIG.font_family};">
-                Plan your meals for the week
+                Your recipe pool for the week
               </p>
               <div class="mt-4 chip" style="background: rgba(118, 75, 162, 0.2); color: ${CONFIG.secondary_action_color};">
-                ${state.planData.length} plans
+                ${state.mealOptions.length} options
               </div>
             </button>
 
@@ -2065,16 +2460,15 @@ function navigateTo(view) {
 
     function renderRecipes() {
       // Filter recipes based on draft status
-      let list = state.showDrafts 
-        ? state.recipes.filter(r => r.isDraft)
-        : state.recipes.filter(r => !r.isDraft);
+   let list = state.showTips 
+        ? state.recipes.filter(r => r.isTip)
+        : state.recipes.filter(r => !r.isDraft && !r.isTip);
 
       // Apply other filters
       list = list.filter(r => {
         if (state.filterFavorites && !r.favorite) return false;
         if (state.filterSourceType !== 'all' && r.sourceType !== state.filterSourceType) return false;
-        if (!state.showDrafts && state.selectedCategory !== 'All' && r.category !== state.selectedCategory) return false;
-        if (state.searchTerm && !(r.title || '').toLowerCase().includes(state.searchTerm.toLowerCase())) return false;
+        if (!state.showTips && state.selectedCategory !== 'All' && r.category !== state.selectedCategory) return false; if (state.searchTerm && !(r.title || '').toLowerCase().includes(state.searchTerm.toLowerCase())) return false;
         
         // Filter by ingredient group
         if (state.filterIngredientGroup !== 'all') {
@@ -2086,8 +2480,8 @@ function navigateTo(view) {
         return true;
       });
 
-      const draftCount = state.recipes.filter(r => r.isDraft).length;
-      const publishedCount = state.recipes.filter(r => !r.isDraft).length;
+   const tipsCount = state.recipes.filter(r => r.isTip).length;
+      const publishedCount = state.recipes.filter(r => !r.isDraft && !r.isTip).length;
 
       return `
                   <div class="p-6 max-w-7xl mx-auto fade-in">
@@ -2097,15 +2491,15 @@ function navigateTo(view) {
               <h2 class="font-bold flex items-center gap-2" style="color:${CONFIG.text_color}; font-size:${CONFIG.font_size * 1.8}px;">
                 <span>📚</span> ${CONFIG.recipes_label}
               </h2>
-              <p style="color:${CONFIG.text_color}; opacity:0.6; font-size:${CONFIG.font_size * 0.95}px; margin-top:4px;">
-                ${publishedCount} published • ${draftCount} drafts
+            <p style="color:${CONFIG.text_color}; opacity:0.6; font-size:${CONFIG.font_size * 0.95}px; margin-top:4px;">
+                ${publishedCount} recipes • ${tipsCount} tips
               </p>
             </div>
             <div class="flex gap-3">
-              <button type="button" onclick="openNewDraft()"
+             <button type="button" onclick="openNewTip()"
                 class="px-5 py-2.5 rounded-xl button-hover flex items-center gap-2"
                 style="background:${CONFIG.secondary_action_color}; color:${CONFIG.text_color}; font-size:${CONFIG.font_size}px; box-shadow: 0 2px 8px rgba(118, 75, 162, 0.3);">
-                <span>💾</span> Save as Draft
+                <span>📝</span> Save as Tip
               </button>
               <button type="button" onclick="openNewRecipe()"
                 class="px-5 py-2.5 rounded-xl button-hover flex items-center gap-2"
@@ -2125,17 +2519,17 @@ function navigateTo(view) {
                   <span>📂</span> View
                 </h3>
                 <div class="space-y-2">
-                  <button type="button" 
-                    onclick="state.showDrafts = false; state.selectedCategory = 'All'; render();"
+                 <button type="button" 
+                    onclick="state.showTips = false; state.selectedCategory = 'All'; render();"
                     class="w-full px-3 py-2 rounded text-left button-hover transition-all"
-                    style="background:${!state.showDrafts ? CONFIG.primary_action_color : 'rgba(255,255,255,0.05)'}; color:${CONFIG.text_color}; font-size:${CONFIG.font_size}px;">
-                    📚 Published <span style="opacity:0.6;">(${publishedCount})</span>
+                    style="background:${!state.showTips ? CONFIG.primary_action_color : 'rgba(255,255,255,0.05)'}; color:${CONFIG.text_color}; font-size:${CONFIG.font_size}px;">
+                    📚 Recipes <span style="opacity:0.6;">(${publishedCount})</span>
                   </button>
                   <button type="button" 
-                    onclick="state.showDrafts = true; state.selectedCategory = 'All'; render();"
+                    onclick="state.showTips = true; state.selectedCategory = 'All'; render();"
                     class="w-full px-3 py-2 rounded text-left button-hover transition-all"
-                    style="background:${state.showDrafts ? CONFIG.primary_action_color : 'rgba(255,255,255,0.05)'}; color:${CONFIG.text_color}; font-size:${CONFIG.font_size}px;">
-                    📝 Drafts <span style="opacity:0.6;">(${draftCount})</span>
+                    style="background:${state.showTips ? CONFIG.primary_action_color : 'rgba(255,255,255,0.05)'}; color:${CONFIG.text_color}; font-size:${CONFIG.font_size}px;">
+                    📝 Tips & Notes <span style="opacity:0.6;">(${tipsCount})</span>
                   </button>
                 </div>
               </div>
@@ -2148,8 +2542,8 @@ function navigateTo(view) {
                   </h3>
                 </div>
 
-                <!-- Category Filter (only for published) -->
-                ${!state.showDrafts ? `
+              <!-- Category Filter (only for published) -->
+                ${!state.showTips ? `
                   <details open class="border-b" style="border-color: rgba(255,255,255,0.08);">
                     <summary class="p-3 cursor-pointer hover:bg-opacity-50 font-semibold" style="color:${CONFIG.text_color}; font-size:${CONFIG.font_size * 0.95}px; list-style: none;">
                       <span>▸</span> Category
@@ -2243,11 +2637,11 @@ function navigateTo(view) {
               ${list.length === 0 ? `
                 <div class="p-12 rounded text-center" style="background:${CONFIG.surface_color}; color:${CONFIG.text_color};">
                   <div style="font-size:3rem; margin-bottom:1rem;">📭</div>
-                  <div style="font-size:${CONFIG.font_size * 1.2}px; margin-bottom:0.5rem;">
-                    ${state.showDrafts ? 'No drafts found' : 'No recipes found'}
+                <div style="font-size:${CONFIG.font_size * 1.2}px; margin-bottom:0.5rem;">
+                    ${state.showTips ? 'No tips found' : 'No recipes found'}
                   </div>
-                  <div style="opacity:0.7; font-size:${CONFIG.font_size * 0.9}px;">
-                    ${state.searchTerm ? 'Try adjusting your search or filters' : state.showDrafts ? 'Start by saving a recipe as a draft' : 'Add your first recipe to get started'}
+                 <div style="opacity:0.7; font-size:${CONFIG.font_size * 0.9}px;">
+                    ${state.searchTerm ? 'Try adjusting your search or filters' : state.showTips ? 'Start by saving a tip or cooking note' : 'Add your first recipe to get started'}
                   </div>
                 </div>` : `
                 <div class="grid md:grid-cols-2 xl:grid-cols-3 gap-4">
@@ -2256,63 +2650,59 @@ function navigateTo(view) {
                     const img = recipeThumb(r);
                     const sourceIcon = r.sourceType === 'chefiq' ? '🤖' : '👤';
                     return `
-                    <div class="rounded-lg overflow-hidden card-hover cursor-pointer"
-                      onclick="openRecipeView('${id}')"
-                      style="background:${CONFIG.surface_color}; border:1px solid rgba(255,255,255,0.08);">
-                      
-                      <!-- Image -->
-                      ${img ? `
-                        <div style="height:140px; overflow:hidden;">
-                          <img src="${esc(img)}" style="width:100%; height:100%; object-fit:cover;" />
-                        </div>
-                      ` : `
-                        <div style="height:140px; background:rgba(255,255,255,0.03); display:flex; align-items:center; justify-content:center; font-size:3rem;">
-                          🍽️
-                        </div>
-                      `}
+                    <div class="rounded-lg overflow-hidden card-hover"
+                  style="background:${CONFIG.surface_color}; border:1px solid rgba(255,255,255,0.08);">
+                  
+                  ${img ? `
+                    <div style="height:140px; overflow:hidden; ${r.recipe_url ? 'cursor:pointer;' : ''}" 
+                         ${r.recipe_url ? `onclick="window.open('${esc(r.recipe_url)}', '_blank')"` : ''}>
+                      <img src="${esc(img)}" style="width:100%; height:100%; object-fit:cover;" />
+                    </div>
+                  ` : `
+                    <div style="height:140px; background:rgba(255,255,255,0.03); display:flex; align-items:center; justify-content:center; font-size:3rem; ${r.recipe_url ? 'cursor:pointer;' : ''}"
+                         ${r.recipe_url ? `onclick="window.open('${esc(r.recipe_url)}', '_blank')"` : ''}>
+                      📝
+                    </div>
+                  `}
 
-                      <!-- Content -->
-                      <div class="p-4">
-                        <div class="flex items-start justify-between gap-2 mb-2">
-                          <div class="flex-1">
-                            <div class="font-semibold" style="color:${CONFIG.text_color}; font-size:${CONFIG.font_size * 1.05}px; line-height:1.3;">
-                              ${esc(r.title)}
-                            </div>
-                            <div style="color:${CONFIG.text_color}; opacity:.65; font-size:${CONFIG.font_size * .85}px; margin-top:4px;">
-                              ${sourceIcon} ${esc(r.category)}
-                            </div>
-                            ${r.isDraft ? `<div style="color:#f59e0b; font-size:${CONFIG.font_size * .8}px; font-weight:600; margin-top:4px;">📝 DRAFT</div>` : ''}
-                          </div>
-                          <button type="button" class="text-xl"
-                            onclick="event.stopPropagation(); toggleFavorite('${id}')">
-                            ${r.favorite ? '⭐' : '☆'}
-                          </button>
+                  <div class="p-4">
+                    <div class="flex items-start justify-between gap-2 mb-2">
+                      <div class="flex-1">
+                        <div class="font-semibold" style="color:${CONFIG.text_color}; font-size:${CONFIG.font_size * 1.05}px; line-height:1.3;">
+                          ${esc(r.title)}
                         </div>
-
-                        <div class="flex gap-2 mt-3">
-                          ${r.isDraft ? `
-                            <button type="button"
-                              onclick="event.stopPropagation(); publishDraft('${id}')"
-                              class="flex-1 px-2 py-1.5 rounded button-hover text-center"
-                              style="background:#16a34a; color:white; font-size:${CONFIG.font_size * .85}px;">
-                              Publish
-                            </button>
-                          ` : ''}
-                          <button type="button"
-                            onclick="event.stopPropagation(); openEditRecipe('${id}')"
-                            class="flex-1 px-2 py-1.5 rounded button-hover text-center"
-                            style="background:${CONFIG.primary_action_color}; color:${CONFIG.text_color}; font-size:${CONFIG.font_size * .85}px;">
-                            Edit
-                          </button>
-                          <button type="button"
-                            onclick="event.stopPropagation(); if(confirm('Delete this recipe?')) deleteRecipe(state.recipes.find(x=>(x.__backendId||x.id)==='${id}'))"
-                            class="flex-1 px-2 py-1.5 rounded button-hover text-center"
-                            style="background:#dc2626; color:white; font-size:${CONFIG.font_size * .85}px;">
-                            Delete
-                          </button>
+                        <div style="color:#667eea; font-size:${CONFIG.font_size * .8}px; font-weight:600; margin-top:4px;">
+                          📝 ${r.category || 'TIP'}
                         </div>
                       </div>
-                    </div>`;
+                      <button type="button" class="text-xl"
+                        onclick="toggleFavorite('${id}')">
+                        ${r.favorite ? '⭐' : '☆'}
+                      </button>
+                    </div>
+
+                    <div class="flex gap-2 mt-3">
+                     <button type="button"
+                        onclick="openRecipeView('${id}', null, false, true)"
+                        class="flex-1 px-2 py-1.5 rounded button-hover text-center"
+                        style="background:${CONFIG.primary_action_color}; color:${CONFIG.text_color}; font-size:${CONFIG.font_size * .85}px;">
+                        View
+                      </button>
+                      <button type="button"
+                        onclick="openEditRecipe('${id}')"
+                        class="flex-1 px-2 py-1.5 rounded button-hover text-center"
+                        style="background:${CONFIG.secondary_action_color}; color:${CONFIG.text_color}; font-size:${CONFIG.font_size * .85}px;">
+                        Edit
+                      </button>
+                      <button type="button"
+                        onclick="if(confirm('Delete this tip?')) deleteRecipe(state.recipes.find(x=>(x.__backendId||x.id)==='${id}'))"
+                        class="flex-1 px-2 py-1.5 rounded button-hover text-center"
+                        style="background:#dc2626; color:white; font-size:${CONFIG.font_size * .85}px;">
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                </div>`;
                   }).join('')}
                 </div>
               `}
@@ -2397,23 +2787,23 @@ function navigateTo(view) {
       return `
         <div class="p-6 max-w-5xl mx-auto">
           <div class="flex items-center justify-between mb-6 mobile-stack gap-3">
-            <h2 class="font-bold" style="color:${CONFIG.text_color}; font-size:${CONFIG.font_size * 1.6}px;">
-              ${state.recipeForm.id ? 'Edit Recipe' : (state.recipeForm.isDraft ? 'New Draft' : 'New Recipe')}
+         <h2 class="font-bold" style="color:${CONFIG.text_color}; font-size:${CONFIG.font_size * 1.6}px;">
+              ${state.recipeForm.id ? 'Edit ' : 'New '}${state.recipeForm.isTip ? 'Tip' : 'Recipe'}
             </h2>
             <div class="flex gap-2">
               <button type="button" onclick="closeRecipeEditor()"
                 class="px-4 py-2 rounded button-hover"
                 style="background:${CONFIG.secondary_action_color}; color:${CONFIG.text_color};">Cancel</button>
-              <button type="button" onclick="saveRecipeForm()"
+            <button type="button" onclick="saveRecipeForm()"
                 class="px-4 py-2 rounded button-hover"
                 style="background:${CONFIG.primary_action_color}; color:${CONFIG.text_color};">
-                ${state.recipeForm.isDraft ? 'Save Draft' : 'Save Recipe'}
+                ${state.recipeForm.isTip ? 'Save Tip' : 'Save Recipe'}
               </button>
             </div>
           </div>
 
-          <div class="rounded p-6" style="background:${CONFIG.surface_color};">
-            <label class="block mb-2 font-semibold" style="color:${CONFIG.text_color};">Recipe Title *</label>
+        <div class="rounded p-6" style="background:${CONFIG.surface_color};">
+            <label class="block mb-2 font-semibold" style="color:${CONFIG.text_color};">${state.recipeForm.isTip ? 'Tip Title' : 'Recipe Title'} *</label>
             <input class="w-full px-4 py-3 rounded border"
               style="background:rgba(0,0,0,0.18); color:${CONFIG.text_color}; border-color:rgba(255,255,255,0.12);"
               value="${esc(state.recipeForm.title || '')}"
@@ -2425,30 +2815,47 @@ function navigateTo(view) {
                 <select class="w-full px-4 py-3 rounded border"
                   style="background:rgba(0,0,0,0.18); color:${CONFIG.text_color}; border-color:rgba(255,255,255,0.12);"
                   onchange="setRecipeField('category', this.value)">
-                  ${MEAL_CATEGORIES.map(c => `
-                    <option value="${c}" ${state.recipeForm.category === c ? 'selected' : ''}>${c}</option>
-                  `).join('')}
+                  ${state.recipeForm.isTip ? 
+                    TIP_CATEGORIES.map(c => `
+                      <option value="${c}" ${state.recipeForm.category === c ? 'selected' : ''}>${c}</option>
+                    `).join('') :
+                    MEAL_CATEGORIES.map(c => `
+                      <option value="${c}" ${state.recipeForm.category === c ? 'selected' : ''}>${c}</option>
+                    `).join('')
+                  }
                 </select>
               </div>
 
-              <div>
-                <label class="block mb-2 font-semibold" style="color:${CONFIG.text_color};">Source Type</label>
-                <select class="w-full px-4 py-3 rounded border"
+              ${state.recipeForm.isTip ? `
+                <div>
+                  <label class="block mb-2 font-semibold" style="color:${CONFIG.text_color};">Reference URL (optional)</label>
+                  <input class="w-full px-4 py-3 rounded border" placeholder="https://..."
+                    style="background:rgba(0,0,0,0.18); color:${CONFIG.text_color}; border-color:rgba(255,255,255,0.12);"
+                    value="${esc(state.recipeForm.recipe_url || '')}"
+                    oninput="setRecipeField('recipe_url', this.value)" />
+                </div>
+              ` : `
+                <div>
+                  <label class="block mb-2 font-semibold" style="color:${CONFIG.text_color};">Source Type</label>
+                  <select class="w-full px-4 py-3 rounded border"
+                    style="background:rgba(0,0,0,0.18); color:${CONFIG.text_color}; border-color:rgba(255,255,255,0.12);"
+                    onchange="setRecipeField('sourceType', this.value)">
+                    <option value="user" ${(state.recipeForm.sourceType || 'user') === 'user' ? 'selected' : ''}>User-Created</option>
+                    <option value="chefiq" ${state.recipeForm.sourceType === 'chefiq' ? 'selected' : ''}>ChefIQ Guided</option>
+                  </select>
+                </div>
+              `}
+            </div>
+
+            ${!state.recipeForm.isTip ? `
+              <div class="mt-5">
+                <label class="block mb-2 font-semibold" style="color:${CONFIG.text_color};">Recipe URL *</label>
+                <input class="w-full px-4 py-3 rounded border" placeholder="https://..."
                   style="background:rgba(0,0,0,0.18); color:${CONFIG.text_color}; border-color:rgba(255,255,255,0.12);"
-                  onchange="setRecipeField('sourceType', this.value)">
-                  <option value="user" ${(state.recipeForm.sourceType || 'user') === 'user' ? 'selected' : ''}>User-Created</option>
-                  <option value="chefiq" ${state.recipeForm.sourceType === 'chefiq' ? 'selected' : ''}>ChefIQ Guided</option>
-                </select>
+                  value="${esc(state.recipeForm.recipe_url || '')}"
+                  oninput="setRecipeField('recipe_url', this.value)" />
               </div>
-            </div>
-
-            <div class="mt-5">
-              <label class="block mb-2 font-semibold" style="color:${CONFIG.text_color};">Recipe URL *</label>
-              <input class="w-full px-4 py-3 rounded border" placeholder="https://..."
-                style="background:rgba(0,0,0,0.18); color:${CONFIG.text_color}; border-color:rgba(255,255,255,0.12);"
-                value="${esc(state.recipeForm.recipe_url || '')}"
-                oninput="setRecipeField('recipe_url', this.value)" />
-            </div>
+            ` : ''}
 
             <div class="mt-5">
               <label class="block mb-2 font-semibold" style="color:${CONFIG.text_color};">Image</label>
@@ -2520,15 +2927,7 @@ function navigateTo(view) {
                 </div>` : ''}
             </div>
 
-            ${renderIngredientGrid()}
-
-            <div class="mt-6">
-              <label class="block mb-2 font-semibold" style="color:${CONFIG.text_color};">Tags (optional)</label>
-              <input class="w-full px-4 py-3 rounded border" placeholder="e.g. Mediterranean, High Protein"
-                style="background:rgba(0,0,0,0.18); color:${CONFIG.text_color}; border-color:rgba(255,255,255,0.12);"
-                value="${esc(state.recipeForm.tags || '')}"
-                oninput="setRecipeField('tags', this.value)" />
-            </div>
+${state.recipeForm.isTip ? '' : renderIngredientGrid()}
 
             <div class="mt-6">
               <label class="block mb-2 font-semibold" style="color:${CONFIG.text_color};">
@@ -2550,11 +2949,11 @@ Step 3: Add wet ingredients..."
                 oninput="setRecipeField('notes', this.value)">${state.recipeForm.notes || ''}</textarea>
             </div>
 
-            <div class="mt-6">
+          <div class="mt-6">
               <label class="flex items-center gap-2" style="color:${CONFIG.text_color};">
-                <input type="checkbox" ${state.recipeForm.isDraft ? 'checked' : ''}
-                  onchange="setRecipeField('isDraft', this.checked)">
-                Save as Draft (won't appear in meal planning)
+                <input type="checkbox" ${state.recipeForm.isTip ? 'checked' : ''}
+                  onchange="setRecipeField('isTip', this.checked)">
+                Save as Tip/Note (won't appear in meal planning)
               </label>
             </div>
           </div>
@@ -2590,8 +2989,11 @@ Step 3: Add wet ingredients..."
       return `
                   <div class="p-6 max-w-5xl mx-auto">
           <div class="flex items-center justify-between mb-4 mobile-stack gap-3">
-<button type="button" onclick="navigateTo('${state.viewingFromPlan ? 'weekly-plan' : (state.viewingFromStats ? 'recipe-stats' : 'recipes')}'); state.viewingFromPlan=null; state.viewingFromStats=null;"              class="px-4 py-2 rounded button-hover"
-              style="background:${CONFIG.secondary_action_color}; color:${CONFIG.text_color};">← Back</button>
+<button type="button" onclick="navigateTo('${state.viewingFromPlan ? 'weekly-plan' : (state.viewingFromStats ? 'recipe-stats' : (state.viewingFromTips ? 'tips' : 'recipes'))}')"
+                class="px-4 py-2 rounded button-hover"
+                style="background:${CONFIG.secondary_action_color}; color:${CONFIG.text_color};">
+                ← Back
+              </button>
 
             <div class="flex gap-2 flex-wrap">
              <button type="button" onclick="markAsCooked('${r.__backendId || r.id}')"
@@ -2618,10 +3020,10 @@ ${(r.timesCooked || 0) > 0 ? `
                   🗑️ Remove from Plan
                 </button>
               ` : ''}
-              ${r.isDraft ? `
-                <button type="button" onclick="publishDraft('${r.__backendId || r.id}')"
+              ${r.isTip ? `
+                <button type="button" onclick="publishTip('${r.__backendId || r.id}')"
                   class="px-4 py-2 rounded button-hover"
-                  style="background:#16a34a; color:white;">Publish</button>
+                  style="background:#16a34a; color:white;">Convert to Recipe</button>
               ` : ''}
               <button type="button" onclick="openEditRecipe('${r.__backendId || r.id}')"
                 class="px-4 py-2 rounded button-hover"
@@ -2640,8 +3042,7 @@ ${(r.timesCooked || 0) > 0 ? `
                 <div style="color:${CONFIG.text_color}; opacity:.7;">
                   ${esc(r.category)} • ${sourceLabel}
                 </div>
-                ${r.isDraft ? `<div style="color:#f59e0b; font-weight:600; margin-top:8px;">📝 DRAFT - Not available for meal planning</div>` : ''}
-              </div>
+${r.isTip ? `<div style="color:#667eea; font-weight:600; margin-top:8px;">📝 TIP/NOTE - Not available for meal planning</div>` : ''}              </div>
               <button type="button" onclick="toggleFavorite('${r.__backendId || r.id}')" class="text-2xl">
                 ${r.favorite ? '⭐' : '☆'}
               </button>
@@ -2804,23 +3205,17 @@ ${(r.timesCooked || 0) > 0 ? `
                           </div>
                         `}
                         
-                        <div class="flex gap-2">
-                          ${canAddMore ? `
-                            <button type="button" onclick="event.stopPropagation(); openRecipePicker('${date}','${meal}')"
-                              class="px-3 py-1 rounded button-hover"
-                              style="background:${CONFIG.primary_action_color};color:${CONFIG.text_color};font-size:${CONFIG.font_size * .85}px;">
-                              ${hasRecipes ? '+ Add Another' : 'Add Recipe'}
-                            </button>
-                            <button type="button" onclick="event.stopPropagation(); openExternalMealPicker('${date}','${meal}')"
-                              class="px-3 py-1 rounded button-hover"
-                              style="background:${CONFIG.secondary_action_color};color:${CONFIG.text_color};font-size:${CONFIG.font_size * .85}px;">
-                              External
-                            </button>
-                          ` : `
-                            <div style="color:${CONFIG.text_color}; opacity:.6; font-size:${CONFIG.font_size * .85}px; font-style:italic;">
-                              Max 2 meals per slot
-                            </div>
-                          `}
+                     <div class="flex gap-2">
+                          <button type="button" onclick="event.stopPropagation(); openRecipePicker('${date}','${meal}')"
+                            class="px-3 py-1 rounded button-hover"
+                            style="background:${CONFIG.primary_action_color};color:${CONFIG.text_color};font-size:${CONFIG.font_size * .85}px;">
+                            ${hasRecipes ? '+ Add Another' : 'Add Recipe'}
+                          </button>
+                          <button type="button" onclick="event.stopPropagation(); openExternalMealPicker('${date}','${meal}')"
+                            class="px-3 py-1 rounded button-hover"
+                            style="background:${CONFIG.secondary_action_color};color:${CONFIG.text_color};font-size:${CONFIG.font_size * .85}px;">
+                            External
+                          </button>
                         </div>
                       </div>
                     `;
@@ -2836,11 +3231,12 @@ ${(r.timesCooked || 0) > 0 ? `
       // Only show published recipes in picker
 
 
-    const filteredRecipes = state.recipes.filter(r => {
-  if (r.isDraft) return false; // Exclude drafts
+   const filteredRecipes = state.recipes.filter(r => {
+  if (r.isDraft || r.isTip) return false; // Exclude drafts and tips
   if (state.filterFavorites && !r.favorite) return false;
   if (state.filterUserCreated && r.sourceType !== 'user') return false; // ← ADD THIS LINE
-if (state.recipePickerSearchTerm && !r.title.toLowerCase().includes(state.recipePickerSearchTerm.toLowerCase())) return false;  if (state.selectedCategory === 'All') return true;
+if (state.recipePickerSearchTerm && !r.title.toLowerCase().includes(state.recipePickerSearchTerm.toLowerCase())) return false;
+  if (state.selectedCategory === 'All') return true;
   return r.category === state.selectedCategory;
 });
 
@@ -2973,9 +3369,126 @@ if (state.recipePickerSearchTerm && !r.title.toLowerCase().includes(state.recipe
               class="px-4 py-2 rounded button-hover">
               ⚙️ Manage External Meal Types
             </button>
-          </div>
+         </div>
         </div>
       `;
+    }
+
+    function showManageExternalMealTypes() {
+      openModal(`
+        <div style="color: #1a1a2e;">
+          <h2 class="text-2xl font-bold mb-4">Manage External Meal Types</h2>
+          
+          <div class="mb-4">
+            <label class="block mb-2 font-semibold">Current Types:</label>
+            <div class="space-y-2">
+              ${state.externalMealTypes.map((type, idx) => `
+                <div class="flex items-center justify-between p-2 bg-gray-100 rounded">
+                  <span>${esc(type)}</span>
+                  <button onclick="removeExternalMealType(${idx})" 
+                          class="px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600">
+                    Delete
+                  </button>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+
+          <div class="mb-4">
+            <label class="block mb-2 font-semibold">Add New Type:</label>
+            <div class="flex gap-2">
+              <input type="text" id="newExternalMealType" 
+                     class="flex-1 px-3 py-2 border rounded"
+                     placeholder="e.g., Office Cafeteria" />
+              <button onclick="addExternalMealType()" 
+                      class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
+                Add
+              </button>
+            </div>
+          </div>
+
+          <div class="flex gap-2 justify-end mt-6">
+            <button onclick="closeModal()" class="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400">
+              Done
+            </button>
+          </div>
+        </div>
+      `);
+    }
+
+    function showAddManualItemModal() {
+      openModal(`
+        <div style="color: #1a1a2e;">
+          <h2 class="text-2xl font-bold mb-4">Add Manual Item</h2>
+          
+          <div class="mb-4">
+            <label class="block mb-2 font-semibold">Item Name:</label>
+            <input type="text" id="manualItemName" 
+                   class="w-full px-3 py-2 border rounded"
+                   placeholder="e.g., Paper Towels, Dish Soap" />
+          </div>
+
+          <div class="mb-4">
+            <label class="block mb-2 font-semibold">Category:</label>
+            <select id="manualItemGroup" class="w-full px-3 py-2 border rounded">
+              ${ING_GROUPS.map(group => `<option value="${group}">${group}</option>`).join('')}
+            </select>
+          </div>
+
+          <div class="flex gap-2 justify-end mt-6">
+            <button onclick="closeModal()" class="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400">
+              Cancel
+            </button>
+            <button onclick="addManualGroceryItem()" 
+                    class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
+              Add Item
+            </button>
+          </div>
+        </div>
+      `);
+    }
+
+    async function addManualGroceryItem() {
+      const nameInput = document.getElementById('manualItemName');
+      const groupSelect = document.getElementById('manualItemGroup');
+      
+      const itemName = nameInput.value.trim();
+      const itemGroup = groupSelect.value;
+      
+      if (!itemName) {
+        showError('Please enter an item name');
+        return;
+      }
+
+      const ingredientKey = normalizeIngredient(itemName);
+      
+      const manualSelId = `mealSel_manual_${Date.now()}`;
+      const manualSel = {
+        id: manualSelId,
+        mealDate: 'manual',
+        meal: 'manual',
+        recipeId: 'manual',
+        manualItem: {
+          name: itemName,
+          group: itemGroup
+        },
+        includedIngredientKeys: JSON.stringify([ingredientKey])
+      };
+
+      state.isLoading = true;
+      closeModal();
+      render();
+
+      try {
+        await storage.create(manualSel);
+        showToast('Item added to grocery list!', 'success');
+      } catch (e) {
+        showError('Failed to add item');
+        console.error(e);
+      } finally {
+        state.isLoading = false;
+        render();
+      }
     }
 
     function renderGroceryIngredients() {
@@ -3110,7 +3623,12 @@ function renderGroceryList() {
         <h2 style="color: ${CONFIG.text_color}; font-size: ${CONFIG.font_size * 1.5}px; font-family: ${CONFIG.font_family}, sans-serif;" class="font-bold">
           ${CONFIG.grocery_list_label}
         </h2>
-        <div class="flex gap-2">
+       <div class="flex gap-2">
+          <button type="button" onclick="showAddManualItemModal();"
+                  style="background: ${CONFIG.secondary_action_color}; color: ${CONFIG.text_color}; font-family: ${CONFIG.font_family}, sans-serif; font-size: ${CONFIG.font_size}px;"
+                  class="px-4 py-2 rounded button-hover">
+            ➕ Add Item
+          </button>
           ${groceryList.length > 0 ? `
             <button type="button" onclick="if(confirm('Delete all items from grocery list?')) clearAllGroceryItems();"
                     style="background:#dc2626; color:white; font-family: ${CONFIG.font_family}, sans-serif; font-size: ${CONFIG.font_size}px;"
@@ -3216,7 +3734,7 @@ function renderGroceryList() {
             newInput.setSelectionRange(cursorPos, cursorPos);
           }
         }, 0);
-      }, 120000);
+      }, 600);
  }
 
     let recipesPageSearchTimeout = null;
@@ -3238,7 +3756,7 @@ function renderGroceryList() {
             newInput.setSelectionRange(cursorPos, cursorPos);
           }
         }, 0);
-      }, 120000);
+      }, 600);
     }
 
     // ===== MAIN RENDER =====
@@ -3278,8 +3796,17 @@ function renderGroceryList() {
         case 'external-meal-picker':
           content = renderExternalMealPicker();
           break;
-        case 'recipe-stats':
+       case 'recipe-stats':
           content = renderRecipeStats();
+          break;
+       case 'tips':
+          content = renderTips();
+          break;
+        case 'meal-options':
+          content = renderMealOptions();
+          break;
+        case 'meal-options-recipe-picker':
+          content = renderMealOptionsRecipePicker();
           break;
         default:
           content = renderHome();
