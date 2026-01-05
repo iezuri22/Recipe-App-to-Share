@@ -347,11 +347,34 @@ currentWeekStartDate: (() => {
             } else {
               // Logged in - load data
               await this.loadData();
+              
+              // Subscribe to real-time changes
+              this.subscribeToChanges(user.id);
             }
           }
         }, 100);
         
         return { isOk: true };
+      },
+
+      subscribeToChanges(userId) {
+        // Listen for any changes to your data
+        window.supabaseClient
+          .channel('meal_planner_changes')
+          .on('postgres_changes', 
+            { 
+              event: '*', // Listen to INSERT, UPDATE, DELETE
+              schema: 'public', 
+              table: 'meal_planner_data',
+              filter: `user_id=eq.${userId}`
+            }, 
+            (payload) => {
+              console.log('Real-time change detected:', payload);
+              // Reload data when any change happens
+              this.loadData();
+            }
+          )
+          .subscribe();
       },
 
     async loadData() {
