@@ -354,9 +354,12 @@ currentWeekStartDate: (() => {
         return { isOk: true };
       },
 
-      async loadData() {
+    async loadData() {
         const { data: { user } } = await window.supabaseClient.auth.getUser();
         if (!user) return;
+
+        // Update user indicator
+        updateUserIndicator(user.email);
 
         const { data, error } = await window.supabaseClient
           .from('meal_planner_data')
@@ -452,24 +455,9 @@ currentWeekStartDate: (() => {
 
    function getWeekDates(startDate) {
   const dates = [];
-  const start = new Date(startDate);
+  const start = new Date(startDate + 'T00:00:00');
   
-  // Check if we should include yesterday
-  const today = new Date();
-  const yesterday = new Date(today);
-  yesterday.setDate(today.getDate() - 1);
-  
-  const startDateObj = new Date(start);
-  const daysDiff = Math.floor((startDateObj - yesterday) / (1000 * 60 * 60 * 24));
-  
-  // If start date is today and yesterday is within this week, include it
-  const shouldIncludeYesterday = daysDiff === 1;
-  
-  if (shouldIncludeYesterday) {
-    dates.push(yesterday.toISOString().split('T')[0]);
-  }
-  
-  // Get the next 7 days from start date
+  // Get exactly 7 days starting from startDate (Sunday)
   for (let i = 0; i < 7; i++) {
     const date = new Date(start);
     date.setDate(start.getDate() + i);
@@ -737,6 +725,17 @@ currentWeekStartDate: (() => {
       await window.supabaseClient.auth.signOut();
       showToast('Logged out', 'success');
       location.reload();
+    }
+
+   function updateUserIndicator(email) {
+      const indicator = document.getElementById('userIndicator');
+      const emailSpan = document.getElementById('userEmail');
+      
+      if (indicator && emailSpan && email) {
+        const displayEmail = email.substring(0, 4) + '...';
+        emailSpan.textContent = displayEmail;
+        indicator.style.display = 'block';
+      }
     }
 
     function showClearDataModal() {
@@ -1993,7 +1992,10 @@ function navigateTo(view) {
                       class="button-hover px-3 py-2 rounded-lg ${state.currentView && state.currentView.includes('grocery') ? 'glass' : ''}">
                 🛒 ${CONFIG.grocery_list_label}
               </button>
-              <button type="button" onclick="showSettingsMenu()"
+             <div id="userIndicator" style="color: ${CONFIG.text_color}; font-size: ${CONFIG.font_size * 0.85}px; padding: 6px 12px; background: rgba(102, 126, 234, 0.2); border-radius: 8px; display: none;">
+                <span id="userEmail"></span>
+              </div>
+             <button type="button" onclick="showSettingsMenu()"
                       style="color: ${CONFIG.text_color}; font-family: ${CONFIG.font_family}; font-size: ${CONFIG.font_size * 1.3}px;"
                       class="button-hover p-2 rounded-lg hover:glass"
                       title="Settings & Export/Import">
@@ -2012,10 +2014,13 @@ function navigateTo(view) {
                 <option value="recipe-stats" ${state.currentView === 'recipe-stats' ? 'selected' : ''}>👨‍🍳 Most Cooked</option>
                 <option value="grocery-list" ${state.currentView && state.currentView.includes('grocery') ? 'selected' : ''}>🛒 ${CONFIG.grocery_list_label}</option>
               </select>
-              <button type="button" onclick="showSettingsMenu()"
+            <div id="userIndicator" style="color: ${CONFIG.text_color}; font-size: ${CONFIG.font_size * 0.85}px; padding: 6px 12px; background: rgba(102, 126, 234, 0.2); border-radius: 8px; display: none;">
+                <span id="userEmail"></span>
+              </div>
+             <button type="button" onclick="showSettingsMenu()"
                       style="color: ${CONFIG.text_color}; font-family: ${CONFIG.font_family}; font-size: ${CONFIG.font_size * 1.3}px;"
                       class="button-hover p-2 rounded-lg hover:glass"
-                      title="Settings">
+                      title="Settings & Export/Import">
                 ⚙️
               </button>
             </div>
@@ -2151,27 +2156,27 @@ function navigateTo(view) {
                           const img = recipeThumb(recipe);
                           
                           return `
-                            <div style="display:flex; align-items:center; gap:10px; background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:8px; padding:10px; flex:1; min-width:250px;">
+                            <div style="display:flex; align-items:center; gap:8px; background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:6px; padding:8px; flex:1; min-width:250px;">
                               ${img ? `
-                                <div style="width:60px; height:60px; flex-shrink:0; border-radius:8px; overflow:hidden; cursor:pointer;" onclick="openRecipeView('${recipe.__backendId || recipe.id}', null, false, false, true)">
+                                <div style="width:40px; height:40px; flex-shrink:0; border-radius:6px; overflow:hidden; cursor:pointer;" onclick="openRecipeView('${recipe.__backendId || recipe.id}', null, false, false, true)">
                                   <img src="${esc(img)}" style="width:100%; height:100%; object-fit:cover;" />
                                 </div>
                               ` : `
-                                <div style="width:60px; height:60px; flex-shrink:0; border-radius:8px; background:rgba(255,255,255,0.05); display:flex; align-items:center; justify-content:center; font-size:2rem; cursor:pointer;"
+                                <div style="width:40px; height:40px; flex-shrink:0; border-radius:6px; background:rgba(255,255,255,0.05); display:flex; align-items:center; justify-content:center; font-size:1.2rem; cursor:pointer;"
                                      onclick="openRecipeView('${recipe.__backendId || recipe.id}', null, false, false, true)">
                                   🍽️
                                 </div>
                               `}
                               
                               <div style="flex:1; min-width:0;">
-                                <div style="color:${CONFIG.text_color}; font-size:${CONFIG.font_size * 0.95}px; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+                                <div style="color:${CONFIG.text_color}; font-size:${CONFIG.font_size * 0.9}px; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
                                   ${esc(recipe.title)}
                                 </div>
                               </div>
                               
                               <button type="button" onclick="removeMealOption('${opt.id}')"
-                                class="px-3 py-2 rounded button-hover flex-shrink-0"
-                                style="background:#dc2626; color:white; font-size:${CONFIG.font_size * 0.85}px;">
+                                class="px-2 py-1 rounded button-hover flex-shrink-0"
+                                style="background:#dc2626; color:white; font-size:${CONFIG.font_size * 0.75}px;">
                                 Remove
                               </button>
                             </div>
@@ -3746,19 +3751,7 @@ function setCurrentWeek() {
       render();
     }
    function renderWeeklyPlan() {
-      let dates = getWeekDates(state.currentWeekStartDate);
-      
-      // Find today's date
-const today = new Date();
-      const localDate = new Date(today.getTime() - (today.getTimezoneOffset() * 60000));
-      const todayStr = localDate.toISOString().split('T')[0];
-     const todayIndex = dates.indexOf(today);
-      
-      // If today is in the list, move it to the top
-      if (todayIndex > -1) {
-        const todayDate = dates.splice(todayIndex, 1)[0];
-        dates = [todayDate, ...dates];
-      }
+      const dates = getWeekDates(state.currentWeekStartDate);
      const meals = ['Breakfast', 'Lunch', 'Dinner'];
 
       return `
@@ -3767,16 +3760,16 @@ const today = new Date();
             <h2 class="font-bold" style="color:${CONFIG.text_color}; font-size:${CONFIG.font_size * 1.5}px;">
               ${CONFIG.weekly_plan_label}
             </h2>
-         <div class="flex gap-2">
+         <div class="flex gap-1">
               <button type="button" onclick="changeWeek(-1)"
-                class="px-3 py-2 rounded button-hover"
-                style="background:${CONFIG.secondary_action_color}; color:${CONFIG.text_color};">← Prev</button>
+                class="px-2 py-1 rounded button-hover"
+                style="background:${CONFIG.secondary_action_color}; color:${CONFIG.text_color}; font-size:${CONFIG.font_size * 0.85}px;">← Prev</button>
               <button type="button" onclick="setCurrentWeek()"
-                class="px-3 py-2 rounded button-hover"
-                style="background:${CONFIG.primary_action_color}; color:${CONFIG.text_color};">This Week</button>
+                class="px-2 py-1 rounded button-hover"
+                style="background:${CONFIG.primary_action_color}; color:${CONFIG.text_color}; font-size:${CONFIG.font_size * 0.85}px;">This Week</button>
               <button type="button" onclick="changeWeek(1)"
-                class="px-3 py-2 rounded button-hover"
-                style="background:${CONFIG.secondary_action_color}; color:${CONFIG.text_color};">Next →</button>
+                class="px-2 py-1 rounded button-hover"
+                style="background:${CONFIG.secondary_action_color}; color:${CONFIG.text_color}; font-size:${CONFIG.font_size * 0.85}px;">Next →</button>
             </div>
           </div>
 
@@ -3857,15 +3850,15 @@ const today = new Date();
                 </div>
 
                 <!-- Quick Add Buttons -->
-                <div class="flex gap-2">
+              <div class="flex gap-1">
                   <button type="button" onclick="showAddExpenseModal('grocery')"
-                    class="flex-1 px-3 py-1.5 rounded-lg button-hover"
-                    style="background:#16a34a; color:white; font-size:${CONFIG.font_size * 0.8}px; font-weight:600;">
+                    class="flex-1 px-2 py-1 rounded button-hover"
+                    style="background:#16a34a; color:white; font-size:${CONFIG.font_size * 0.75}px; font-weight:600;">
                     + Grocery
                   </button>
                   <button type="button" onclick="showAddExpenseModal('takeout')"
-                    class="flex-1 px-3 py-1.5 rounded-lg button-hover"
-                    style="background:#f59e0b; color:white; font-size:${CONFIG.font_size * 0.8}px; font-weight:600;">
+                    class="flex-1 px-2 py-1 rounded button-hover"
+                    style="background:#f59e0b; color:white; font-size:${CONFIG.font_size * 0.75}px; font-weight:600;">
                     + Takeout
                   </button>
                 </div>
@@ -3948,15 +3941,15 @@ const today = new Date();
                           </div>
                         `}
                         
-                     <div class="flex gap-2">
+                     <div class="flex gap-1">
                           <button type="button" onclick="event.stopPropagation(); openRecipePicker('${date}','${meal}')"
-                            class="px-3 py-1 rounded button-hover"
-                            style="background:${CONFIG.primary_action_color};color:${CONFIG.text_color};font-size:${CONFIG.font_size * .85}px;">
+                            class="px-2 py-1 rounded button-hover"
+                            style="background:${CONFIG.primary_action_color};color:${CONFIG.text_color};font-size:${CONFIG.font_size * .75}px;">
                             ${hasRecipes ? '+ Add Another' : 'Add Recipe'}
                           </button>
                           <button type="button" onclick="event.stopPropagation(); openExternalMealPicker('${date}','${meal}')"
-                            class="px-3 py-1 rounded button-hover"
-                            style="background:${CONFIG.secondary_action_color};color:${CONFIG.text_color};font-size:${CONFIG.font_size * .85}px;">
+                            class="px-2 py-1 rounded button-hover"
+                            style="background:${CONFIG.secondary_action_color};color:${CONFIG.text_color};font-size:${CONFIG.font_size * .75}px;">
                             External
                           </button>
                         </div>
