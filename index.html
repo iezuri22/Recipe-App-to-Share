@@ -357,9 +357,9 @@ currentWeekStartDate: (() => {
         return { isOk: true };
       },
 
-      subscribeToChanges(userId) {
+     subscribeToChanges(userId) {
         // Listen for any changes to your data
-        window.supabaseClient
+        const channel = window.supabaseClient
           .channel('meal_planner_changes')
           .on('postgres_changes', 
             { 
@@ -374,7 +374,14 @@ currentWeekStartDate: (() => {
               this.loadData();
             }
           )
-          .subscribe();
+          .subscribe((status) => {
+            if (status === 'SUBSCRIBED') {
+              console.log('✅ Real-time subscribed');
+            }
+            if (status === 'CHANNEL_ERROR') {
+              console.log('⚠️ Real-time error - continuing without live sync');
+            }
+          });
       },
 
     async loadData() {
