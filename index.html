@@ -261,12 +261,12 @@
     // Supabase setup
     const SUPABASE_URL = 'https://blqbxduxgimarrhgyfgn.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJscWJ4ZHV4Z2ltYXJyaGd5ZmduIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc1NjgyNDcsImV4cCI6MjA4MzE0NDI0N30.iNrBLJLSQEUEV24VCnhrMPTTJ6A_0rIuSAOinuFd-vM';
-    // Load Supabase library
+  // Load Supabase library
     const script = document.createElement('script');
-    script.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2';
+    script.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.0/dist/umd/supabase.js';
     script.onload = () => {
-      window.supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-      console.log('✅ Supabase loaded');
+      window.supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+      console.log('✅ Supabase loaded', window.supabaseClient);
     };
     document.head.appendChild(script);
 
