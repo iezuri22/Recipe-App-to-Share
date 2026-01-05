@@ -257,7 +257,20 @@
     <div id="modal-content" class="bg-white rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[80vh] overflow-auto"></div>
   </div>
 
-  <script>
+ <script>
+    // Supabase setup
+    const SUPABASE_URL = 'https://blqbxduxgimarrhgyfgn.supabase.co';
+    const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJscWJ4ZHV4Z2ltYXJyaGd5ZmduIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzYwMzIzNTksImV4cCI6MjA1MTYwODM1OX0.vQoq5CcHqT0FXjUOYdD2Lqzr3jOVeEyvqyVdGZ_vT6w';
+
+    // Load Supabase library
+    const script = document.createElement('script');
+    script.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2';
+    script.onload = () => {
+      window.supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+      console.log('✅ Supabase loaded');
+    };
+    document.head.appendChild(script);
+
     // ===== CONFIG & STATE =====
     const CONFIG = {
       background_color: "#0f0f23",
@@ -316,49 +329,107 @@ currentWeekStartDate: (() => {
   viewingFromPlan: null,
    scrollPositions: {}
 };
-    // ===== STORAGE SDK =====
+// ===== STORAGE SDK =====
     const storage = {
-      load() {
-        try {
-          return JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
-        } catch {
-          return [];
-        }
-      },
-
-      save(data) {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-      },
-
-      _data: [],
-      _handler: null,
-
       async init(handler) {
-        this._data = this.load();
         this._handler = handler;
-        handler.onDataChanged(this._data);
+        
+        // Wait for Supabase to load
+        const checkSupabase = setInterval(async () => {
+          if (window.supabaseClient) {
+            clearInterval(checkSupabase);
+            
+            // Check if user is logged in
+            const { data: { user } } = await window.supabaseClient.auth.getUser();
+            
+            if (!user) {
+              // Not logged in - show login
+              showLoginModal();
+            } else {
+              // Logged in - load data
+              await this.loadData();
+            }
+          }
+        }, 100);
+        
         return { isOk: true };
       },
 
+      async loadData() {
+        const { data: { user } } = await window.supabaseClient.auth.getUser();
+        if (!user) return;
+
+        const { data, error } = await window.supabaseClient
+          .from('meal_planner_data')
+          .select('*')
+          .eq('user_id', user.id);
+
+        if (error) {
+          console.error('Load error:', error);
+          this._handler?.onDataChanged([]);
+          return;
+        }
+
+        const items = data.map(row => ({ id: row.id, ...row.data }));
+        this._handler?.onDataChanged(items);
+      },
+
       async create(item) {
-        this._data.push(item);
-        this.save(this._data);
-        this._handler?.onDataChanged(this._data);
+        const { data: { user } } = await window.supabaseClient.auth.getUser();
+        if (!user) return { isOk: false };
+
+        const { error } = await window.supabaseClient
+          .from('meal_planner_data')
+          .insert({
+            id: item.id,
+            user_id: user.id,
+            data: item
+          });
+
+        if (error) {
+          console.error('Create error:', error);
+          return { isOk: false };
+        }
+
+        await this.loadData();
         return { isOk: true };
       },
 
       async update(item) {
-        const idx = this._data.findIndex(d => d.id === item.id);
-        if (idx !== -1) this._data[idx] = item;
-        this.save(this._data);
-        this._handler?.onDataChanged(this._data);
+        const { data: { user } } = await window.supabaseClient.auth.getUser();
+        if (!user) return { isOk: false };
+
+        const { error } = await window.supabaseClient
+          .from('meal_planner_data')
+          .update({ data: item })
+          .eq('id', item.id)
+          .eq('user_id', user.id);
+
+        if (error) {
+          console.error('Update error:', error);
+          return { isOk: false };
+        }
+
+        await this.loadData();
         return { isOk: true };
       },
 
       async delete(item) {
-        this._data = this._data.filter(d => d.id !== item.id);
-        this.save(this._data);
-        this._handler?.onDataChanged(this._data);
+        const { data: { user } } = await window.supabaseClient.auth.getUser();
+        if (!user) return { isOk: false };
+
+        const { error } = await window.supabaseClient
+          .from('meal_planner_data')
+          .delete()
+          .eq('id', item.id)
+          .eq('user_id', user.id);
+
+        if (error) {
+          console.error('Delete error:', error);
+          return { isOk: false };
+        }
+
+        await this.loadData();
         return { isOk: true };
       }
     };
@@ -533,6 +604,96 @@ currentWeekStartDate: (() => {
       };
       
       reader.readAsText(file);
+    }
+   function showLoginModal() {
+      openModal(`
+        <div style="color: #1a1a2e;">
+          <h2 class="text-2xl font-bold mb-4">🍽️ Welcome to Meal Planner</h2>
+          <p class="mb-4">Sign in to sync your recipes across all your devices</p>
+          
+          <div class="mb-4">
+            <label class="block mb-2 font-semibold">Email:</label>
+            <input type="email" id="loginEmail" class="w-full px-3 py-2 border rounded" placeholder="your@email.com" />
+          </div>
+
+          <div class="mb-4">
+            <label class="block mb-2 font-semibold">Password:</label>
+            <input type="password" id="loginPassword" class="w-full px-3 py-2 border rounded" placeholder="••••••••" />
+          </div>
+
+          <div class="flex gap-2 justify-end">
+            <button onclick="handleLogin()" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
+              Sign In
+            </button>
+            <button onclick="handleSignup()" class="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700">
+              Sign Up
+            </button>
+          </div>
+
+          <div class="mt-4 text-sm text-gray-600 text-center">
+            Your data will be synced to the cloud
+          </div>
+        </div>
+      `);
+    }
+
+    async function handleLogin() {
+      const email = document.getElementById('loginEmail').value;
+      const password = document.getElementById('loginPassword').value;
+
+      if (!email || !password) {
+        showError('Please enter email and password');
+        return;
+      }
+
+      const { data, error } = await window.supabaseClient.auth.signInWithPassword({
+        email: email,
+        password: password
+      });
+
+      if (error) {
+        showError('Login failed: ' + error.message);
+        return;
+      }
+
+      closeModal();
+      showToast('Logged in successfully!', 'success');
+      await storage.loadData();
+    }
+
+    async function handleSignup() {
+      const email = document.getElementById('loginEmail').value;
+      const password = document.getElementById('loginPassword').value;
+
+      if (!email || !password) {
+        showError('Please enter email and password');
+        return;
+      }
+
+      if (password.length < 6) {
+        showError('Password must be at least 6 characters');
+        return;
+      }
+
+      const { data, error } = await window.supabaseClient.auth.signUp({
+        email: email,
+        password: password
+      });
+
+      if (error) {
+        showError('Signup failed: ' + error.message);
+        return;
+      }
+
+      closeModal();
+      showToast('Account created! Check your email to verify.', 'success');
+      showLoginModal();
+    }
+
+    async function handleLogout() {
+      await window.supabaseClient.auth.signOut();
+      showToast('Logged out', 'success');
+      location.reload();
     }
 
     function showClearDataModal() {
@@ -2349,7 +2510,7 @@ function navigateTo(view) {
             </button>
           </div>
 
-          <div class="mt-6 p-4 bg-gray-100 rounded">
+         <div class="mt-6 p-4 bg-gray-100 rounded">
             <div class="text-sm text-gray-700">
               <div class="font-semibold mb-2">📊 Current Data:</div>
               <div>Recipes: ${state.recipes.length}</div>
@@ -2357,6 +2518,12 @@ function navigateTo(view) {
               <div>Grocery Items: ${state.groceryItems.length}</div>
             </div>
           </div>
+
+          <button onclick="closeModal(); handleLogout();" 
+                  class="w-full p-4 bg-red-100 hover:bg-red-200 rounded text-left mt-3">
+            <div class="font-semibold text-lg text-red-700">🚪 Logout</div>
+            <div class="text-sm text-red-600">Sign out of your account</div>
+          </button>
 
           <div class="flex gap-2 justify-end mt-6">
             <button onclick="closeModal()" class="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400">
