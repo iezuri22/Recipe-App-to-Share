@@ -636,7 +636,7 @@ currentWeekStartDate: (() => {
       `);
     }
 
-    async function handleLogin() {
+   async function handleLogin() {
       const email = document.getElementById('loginEmail').value;
       const password = document.getElementById('loginPassword').value;
 
@@ -657,7 +657,51 @@ currentWeekStartDate: (() => {
 
       closeModal();
       showToast('Logged in successfully!', 'success');
+      
+      // Migrate localStorage data to Supabase
+      await migrateLocalStorageToSupabase();
+      
       await storage.loadData();
+    }
+
+    async function migrateLocalStorageToSupabase() {
+      const STORAGE_KEY = 'meal_planner_data_v1';
+      const localData = localStorage.getItem(STORAGE_KEY);
+      
+      if (!localData) {
+        console.log('No local data to migrate');
+        return;
+      }
+
+      try {
+        const items = JSON.parse(localData);
+        const { data: { user } } = await window.supabaseClient.auth.getUser();
+        
+        if (!user || items.length === 0) return;
+
+        showToast('Migrating your data to cloud...', 'info');
+
+        // Upload each item to Supabase
+        for (const item of items) {
+          await window.supabaseClient
+            .from('meal_planner_data')
+            .insert({
+              id: item.id,
+              user_id: user.id,
+              data: item
+            });
+        }
+
+        showToast(`Migrated ${items.length} items to cloud!`, 'success');
+        
+        // Clear localStorage after successful migration
+        localStorage.removeItem(STORAGE_KEY);
+        console.log('Migration complete, localStorage cleared');
+        
+      } catch (e) {
+        console.error('Migration error:', e);
+        showError('Failed to migrate data. Please try again.');
+      }
     }
 
     async function handleSignup() {
