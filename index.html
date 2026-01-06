@@ -2516,11 +2516,21 @@ function navigateTo(view) {
         byYear[year].total += exp.amount;
       });
       
-      const weeklyBudget = state.groceryBudget + state.takeoutBudget;
+      const defaultWeeklyBudget = state.groceryBudget + state.takeoutBudget;
       const weeks = Object.keys(byWeek).sort().reverse();
-      const overBudgetWeeks = weeks.filter(w => byWeek[w].total > weeklyBudget).length;
-      const totalWeeks = weeks.length;
-      const overBudgetPercent = totalWeeks > 0 ? Math.round((overBudgetWeeks / totalWeeks) * 100) : 0;
+      
+      // Only count weeks that have expenses (budget > 0)
+      const weeksWithData = weeks.filter(w => {
+        const weekData = getWeekExpenses(w);
+        return weekData.budget > 0;
+      });
+      const overBudgetWeeks = weeksWithData.filter(w => {
+        const weekData = getWeekExpenses(w);
+        return weekData.total > weekData.budget;
+      }).length;
+const totalWeeks = weeksWithData.length;
+      const weeklyBudget = defaultWeeklyBudget;
+     const overBudgetPercent = totalWeeks > 0 ? Math.round((overBudgetWeeks / totalWeeks) * 100) : 0;
       const recentWeeks = weeks.slice(0, 4).reverse();
       const months = Object.keys(byMonth).sort().reverse();
       const monthlyAvg = months.length > 0 ? Object.values(byMonth).reduce((sum, m) => sum + m.total, 0) / months.length : 0;
@@ -4059,14 +4069,30 @@ function showBudgetModal() {
    function getWeekExpenses(weekStartDate) {
       const weekDates = getWeekDates(weekStartDate);
       if (!state.budgetExpenses || !Array.isArray(state.budgetExpenses)) {
-        return { grocery: 0, takeout: 0, total: 0, expenses: [] };
+        return { grocery: 0, takeout: 0, total: 0, expenses: [], budget: 0, groceryBudget: 0, takeoutBudget: 0 };
       }
       const expenses = state.budgetExpenses.filter(e => weekDates.includes(e.date));
       
       const grocery = expenses.filter(e => e.type === 'grocery').reduce((sum, e) => sum + e.amount, 0);
       const takeout = expenses.filter(e => e.type === 'takeout').reduce((sum, e) => sum + e.amount, 0);
       
-      return { grocery, takeout, total: grocery + takeout, expenses };
+      // Determine budget for this week
+      const today = new Date();
+      const weekStart = new Date(weekStartDate + 'T00:00:00');
+      const currentWeekStart = new Date(today);
+      currentWeekStart.setDate(today.getDate() - today.getDay());
+      currentWeekStart.setHours(0, 0, 0, 0);
+      
+      const isCurrentOrFutureWeek = weekStart >= currentWeekStart;
+      const hasExpenses = expenses.length > 0;
+      
+      // Current/future weeks OR past weeks with expenses get the default budget
+      // Past weeks with no expenses get $0 budget (excluded from stats)
+      const groceryBudget = (isCurrentOrFutureWeek || hasExpenses) ? state.groceryBudget : 0;
+      const takeoutBudget = (isCurrentOrFutureWeek || hasExpenses) ? state.takeoutBudget : 0;
+      const budget = groceryBudget + takeoutBudget;
+      
+      return { grocery, takeout, total: grocery + takeout, expenses, budget, groceryBudget, takeoutBudget };
     }
     
 function setCurrentWeek() {
