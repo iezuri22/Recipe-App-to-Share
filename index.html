@@ -3037,6 +3037,13 @@ function navigateTo(view) {
                             class="col-span-2"
                             style="background: ${CONFIG.surface_color}; color: ${CONFIG.text_color}; border: 1px solid rgba(255,255,255,0.1); font-size: ${CONFIG.font_size * 0.8}px; padding: 4px 8px; border-radius: 4px;">
                       <option value="All" ${state.selectedCategory === 'All' ? 'selected' : ''}>All Categories</option>
+                      ${MEAL_CATEGORIES.map(cat => `
+                        <option value="${cat}" ${state.selectedCategory === cat ? 'selected' : ''}>${cat}</option>
+                      `).join('')}
+                    </select>
+                  </div>
+                </div>
+              </details>
 
               <!-- Results -->
               ${list.length === 0 ? `
