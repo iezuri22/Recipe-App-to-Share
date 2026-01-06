@@ -2004,15 +2004,14 @@ function navigateTo(view) {
                 <span style="font-size: 1rem;">🍽️</span>
                 <span class="app-title hidden sm:inline">${CONFIG.app_title}</span>
               </button>
-              <select onchange="navigateTo(this.value); this.blur();"
+             <select onchange="navigateTo(this.value); this.blur();"
                       style="background: ${CONFIG.surface_color}; color: ${CONFIG.text_color}; border: 1px solid ${CONFIG.primary_action_color}; font-family: ${CONFIG.font_family}; font-size: ${CONFIG.font_size * 0.8}px; padding: 4px 8px; border-radius: 4px;">
-                <option value="recipes" ${state.currentView === 'recipes' ? 'selected' : ''}>Recipes</option>
-                <option value="meal-options" ${state.currentView === 'meal-options' || state.currentView === 'meal-options-recipe-picker' ? 'selected' : ''}>Options</option>
-                <option value="weekly-plan" ${state.currentView === 'weekly-plan' || state.currentView === 'recipe-picker' || state.currentView === 'external-meal-picker' ? 'selected' : ''}>History</option>
-                <option value="tips" ${state.currentView === 'tips' ? 'selected' : ''}>Tips</option>
-                <option value="recipe-stats" ${state.currentView === 'recipe-stats' ? 'selected' : ''}>Top Cooked</option>
-                <option value="grocery-list" ${state.currentView && state.currentView.includes('grocery') ? 'selected' : ''}>Grocery</option>
-                <option value="budget-dashboard" ${state.currentView === 'budget-dashboard' ? 'selected' : ''}>Budget</option>
+                <option value="recipes" ${state.currentView === 'recipes' ? 'selected' : ''}>📚 Recipes</option>
+                <option value="meal-options" ${state.currentView === 'meal-options' || state.currentView === 'meal-options-recipe-picker' ? 'selected' : ''}>📋 Options</option>
+                <option value="weekly-plan" ${state.currentView === 'weekly-plan' || state.currentView === 'recipe-picker' || state.currentView === 'external-meal-picker' ? 'selected' : ''}>📅 History</option>
+                <option value="recipe-stats" ${state.currentView === 'recipe-stats' ? 'selected' : ''}>👨‍🍳 Top Cooked</option>
+                <option value="grocery-list" ${state.currentView && state.currentView.includes('grocery') ? 'selected' : ''}>🛒 Grocery</option>
+                <option value="budget-dashboard" ${state.currentView === 'budget-dashboard' ? 'selected' : ''}>📊 Budget</option>
               </select>
             </div>
             
@@ -3096,15 +3095,15 @@ console.log('byMonth:', byMonth);
                 Tips (${tipsCount})
               </button>
             </div>
-            <div class="flex gap-1">
+           <div class="flex gap-1">
               <button type="button" onclick="openNewTip()"
-                class="px-2 py-1 rounded button-hover"
-                style="background:${CONFIG.secondary_action_color}; color:${CONFIG.text_color}; font-size:${CONFIG.font_size * 0.75}px;">
+                class="px-3 py-1.5 rounded button-hover"
+                style="background:${CONFIG.secondary_action_color}; color:${CONFIG.text_color}; font-size:${CONFIG.font_size * 0.8}px;">
                 + Tip
               </button>
               <button type="button" onclick="openNewRecipe()"
-                class="px-2 py-1 rounded button-hover"
-                style="background:${CONFIG.primary_action_color}; color:${CONFIG.text_color}; font-size:${CONFIG.font_size * 0.75}px;">
+                class="px-3 py-1.5 rounded button-hover"
+                style="background:${CONFIG.primary_action_color}; color:${CONFIG.text_color}; font-size:${CONFIG.font_size * 0.8}px;">
                 + Recipe
               </button>
             </div>
