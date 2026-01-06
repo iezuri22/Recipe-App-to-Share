@@ -292,43 +292,44 @@ const MEAL_CATEGORIES = ['Breakfast', 'Lunch', 'Vegetables', 'Dinner', 'Appetize
     const SOURCE_TYPES = ['user', 'chefiq'];
     const STORAGE_KEY = 'meal_planner_data_v1';
 
-  // State
-
+// State
     const state = {
   recipes: [],
+  mealSelections: [],
+  mealOptions: [],
   planData: [],
- mealSelections: [],
   groceryItems: [],
- mealOptions: [],
- budgetExpenses: [], // {id, date, type: 'grocery'|'takeout', amount, note}
-  weeklyBudget: 200, // Default $200/week (deprecated, kept for migration)
-  groceryBudget: 150, // Default $150/week for groceries
-  takeoutBudget: 50, // Default $50/week for takeout
-  externalMealTypes: ['Eating Out', 'Takeout/Delivery', 'Leftovers', 'At Family/Friends', 'Work Lunch', 'Meal Prep'], selectedDayForRecipe: null,
+  budgetExpenses: [],
+  weeklyBudget: 200,
+  groceryBudget: 150,
+  takeoutBudget: 50,
+  externalMealTypes: ['Eating Out', 'Takeout/Delivery', 'Leftovers', 'At Family/Friends', 'Work Lunch', 'Meal Prep'],
+  selectedDayForRecipe: null,
   selectedMealForRecipe: null,
   selectedCategory: 'All',
   searchTerm: '',
   recipePickerSearchTerm: '',
   filterFavorites: false,
-  filterUserCreated: false,  // ← ADD THIS LINE
+  filterUserCreated: false,
   filterSourceType: 'all',
-filterIngredientGroup: 'all',
+  filterIngredientGroup: 'all',
   showTips: false,
+  showRecipesOrTips: 'recipes',
   selectedGroceryDate: null,
   selectedGroceryMeal: null,
   selectedGroceryRecipeId: null,
-  groceryViewMode: 'all', // 'all' or 'by-meal'
-currentWeekStartDate: (() => {
-  const today = new Date();
-  const sunday = new Date(today);
-  sunday.setDate(today.getDate() - today.getDay());
-  return sunday.toISOString().split('T')[0];
-})(),     isLoading: false,
+  groceryViewMode: 'all',
+  currentWeekStartDate: (() => {
+    const today = new Date();
+    const sunday = new Date(today);
+    sunday.setDate(today.getDate() - today.getDay());
+    return sunday.toISOString().split('T')[0];
+  })(),
+  isLoading: false,
   selectedRecipeViewId: null,
   viewingFromPlan: null,
-   scrollPositions: {}
+  scrollPositions: {}
 };
-// ===== STORAGE SDK =====
     const storage = {
       async init(handler) {
         this._handler = handler;
@@ -1651,7 +1652,7 @@ function getPlannedMealsForWeek(weekStart) {
     }
     function getGroceryList() {
       const aggregated = {};
-
+      if (!state.mealSelections || !Array.isArray(state.mealSelections)) return [];
       state.mealSelections.forEach(sel => {
         const parts = sel.id.split('_');
         const date = parts[1];
@@ -3804,8 +3805,11 @@ function showBudgetModal() {
       }
     }
 
-    function getWeekExpenses(weekStartDate) {
+   function getWeekExpenses(weekStartDate) {
       const weekDates = getWeekDates(weekStartDate);
+      if (!state.budgetExpenses || !Array.isArray(state.budgetExpenses)) {
+        return { grocery: 0, takeout: 0, total: 0, expenses: [] };
+      }
       const expenses = state.budgetExpenses.filter(e => weekDates.includes(e.date));
       
       const grocery = expenses.filter(e => e.type === 'grocery').reduce((sum, e) => sum + e.amount, 0);
