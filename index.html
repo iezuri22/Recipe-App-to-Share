@@ -3153,7 +3153,7 @@ console.log('byMonth:', byMonth);
             </div>
           </details>
 
-        <!-- Results Grid -->
+     <!-- Results Grid -->
           ${list.length === 0 ? `
             <div class="p-4 rounded text-center" style="background:${CONFIG.surface_color}; color:${CONFIG.text_color};">
               <div style="font-size:2rem;">📭</div>
@@ -3162,7 +3162,7 @@ console.log('byMonth:', byMonth);
               </div>
             </div>
           ` : `
-            <div class="grid grid-cols-3 gap-1.5">
+            <div class="grid grid-cols-3 gap-2">
               ${list.map(r => {
                 const id = r.__backendId || r.id;
                 const img = recipeThumb(r);
@@ -3171,32 +3171,32 @@ console.log('byMonth:', byMonth);
                   onclick="openRecipeView('${id}', null, false, ${state.showTips})"
                   style="background:${CONFIG.surface_color}; border:1px solid rgba(255,255,255,0.08);">
                   ${img ? `
-                    <div style="height:100px; overflow:hidden;">
+                    <div style="aspect-ratio:1; overflow:hidden;">
                       <img src="${esc(img)}" style="width:100%; height:100%; object-fit:cover;" />
                     </div>
                   ` : `
-                    <div style="height:100px; background:rgba(255,255,255,0.03); display:flex; align-items:center; justify-content:center; font-size:2rem;">
+                    <div style="aspect-ratio:1; background:rgba(255,255,255,0.03); display:flex; align-items:center; justify-content:center; font-size:2.5rem;">
                       ${state.showTips ? '📝' : '🍽️'}
                     </div>
                   `}
-                  <div class="p-1.5">
-                    <div class="font-semibold truncate" style="color:${CONFIG.text_color}; font-size:${CONFIG.font_size * 0.7}px;">
+                  <div class="p-2">
+                    <div class="font-semibold truncate" style="color:${CONFIG.text_color}; font-size:${CONFIG.font_size * 0.8}px;">
                       ${esc(r.title)} ${r.favorite ? '⭐' : ''}
                     </div>
-                    <div style="color:${CONFIG.text_color}; opacity:0.5; font-size:${CONFIG.font_size * 0.55}px;">
+                    <div style="color:${CONFIG.text_color}; opacity:0.5; font-size:${CONFIG.font_size * 0.65}px;">
                       ${r.category || 'Tip'}
                     </div>
-                    <div class="flex gap-1 mt-1">
+                    <div class="flex gap-1 mt-1.5">
                       <button type="button"
                         onclick="event.stopPropagation(); openRecipeView('${id}', null, false, ${state.showTips})"
-                        class="px-2 py-1 rounded button-hover"
-                        style="background:${CONFIG.primary_action_color}; color:${CONFIG.text_color}; font-size:${CONFIG.font_size * 0.65}px;">
+                        class="px-3 py-1.5 rounded button-hover"
+                        style="background:${CONFIG.primary_action_color}; color:${CONFIG.text_color}; font-size:${CONFIG.font_size * 0.75}px;">
                         View
                       </button>
                       <button type="button"
                         onclick="event.stopPropagation(); openEditRecipe('${id}')"
-                        class="px-2 py-1 rounded button-hover"
-                        style="background:${CONFIG.secondary_action_color}; color:${CONFIG.text_color}; font-size:${CONFIG.font_size * 0.65}px;">
+                        class="px-3 py-1.5 rounded button-hover"
+                        style="background:${CONFIG.secondary_action_color}; color:${CONFIG.text_color}; font-size:${CONFIG.font_size * 0.75}px;">
                         Edit
                       </button>
                     </div>
