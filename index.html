@@ -4125,11 +4125,11 @@ function setCurrentWeek() {
             </div>
           </div>
 
-         ${(() => {
+        ${(() => {
             const weekExpenses = getWeekExpenses(state.currentWeekStartDate);
-            const groceryBudget = state.groceryBudget;
-            const takeoutBudget = state.takeoutBudget;
-            const totalBudget = groceryBudget + takeoutBudget;
+            const groceryBudget = weekExpenses.groceryBudget;
+            const takeoutBudget = weekExpenses.takeoutBudget;
+            const totalBudget = weekExpenses.budget;
             
             const groceryPercent = (weekExpenses.grocery / groceryBudget) * 100;
             const takeoutPercent = (weekExpenses.takeout / takeoutBudget) * 100;
