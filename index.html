@@ -2475,6 +2475,10 @@ function navigateTo(view) {
       `;
     }
    function renderBudgetDashboard() {
+      if (!state.dashboardView) state.dashboardView = 'summary';
+      if (!state.dashboardWeeksToShow) state.dashboardWeeksToShow = 4;
+      if (!state.dashboardMonthsToShow) state.dashboardMonthsToShow = 6;
+      
       const allExpenses = state.budgetExpenses || [];
       
       const getWeekStart = (date) => {
@@ -2526,8 +2530,28 @@ function navigateTo(view) {
       
       return `
         <div class="p-2 max-w-7xl mx-auto">
-          <h2 class="font-bold mb-2" style="color:${CONFIG.text_color}; font-size:${CONFIG.font_size}px;">📊 Budget Dashboard</h2>
+          <div class="flex items-center justify-between mb-2">
+            <h2 class="font-bold" style="color:${CONFIG.text_color}; font-size:${CONFIG.font_size}px;">📊 Dashboard</h2>
+            <div class="flex gap-1">
+              <button onclick="state.dashboardView='summary'; render();"
+                class="px-2 py-1 rounded button-hover"
+                style="background:${state.dashboardView === 'summary' ? CONFIG.primary_action_color : CONFIG.surface_color}; color:${CONFIG.text_color}; font-size:${CONFIG.font_size * 0.7}px;">
+                Summary
+              </button>
+              <button onclick="state.dashboardView='weeks'; render();"
+                class="px-2 py-1 rounded button-hover"
+                style="background:${state.dashboardView === 'weeks' ? CONFIG.primary_action_color : CONFIG.surface_color}; color:${CONFIG.text_color}; font-size:${CONFIG.font_size * 0.7}px;">
+                Weeks
+              </button>
+              <button onclick="state.dashboardView='months'; render();"
+                class="px-2 py-1 rounded button-hover"
+                style="background:${state.dashboardView === 'months' ? CONFIG.primary_action_color : CONFIG.surface_color}; color:${CONFIG.text_color}; font-size:${CONFIG.font_size * 0.7}px;">
+                Months
+              </button>
+            </div>
+          </div>
           
+          ${state.dashboardView === 'summary' ? `
           <div class="grid grid-cols-2 gap-1 mb-2">
             <div class="p-2 rounded" style="background:${CONFIG.surface_color};">
               <div style="color:${CONFIG.text_color}; opacity:0.6; font-size:${CONFIG.font_size * 0.65}px;">All-Time</div>
@@ -2554,7 +2578,7 @@ function navigateTo(view) {
           <div class="p-2 rounded mb-2" style="background:${CONFIG.surface_color};">
             <div style="color:${CONFIG.text_color}; font-size:${CONFIG.font_size * 0.8}px; font-weight:600; margin-bottom:8px;">Last 4 Weeks</div>
             <div class="space-y-1">
-              ${recentWeeks.map(week => {
+              ${recentWeeks.slice(0, 4).map(week => {
                 const data = byWeek[week];
                 const percent = (data.total / weeklyBudget) * 100;
                 const isOver = data.total > weeklyBudget;
@@ -2576,6 +2600,91 @@ function navigateTo(view) {
             </div>
           </div>
           
+          ` : ''}
+          
+          ${state.dashboardView === 'weeks' ? `
+          <div class="p-2 rounded mb-2" style="background:${CONFIG.surface_color};">
+            <div class="flex items-center justify-between mb-2">
+              <div style="color:${CONFIG.text_color}; font-size:${CONFIG.font_size * 0.8}px; font-weight:600;">All Weeks</div>
+              <select onchange="state.dashboardWeeksToShow = parseInt(this.value); render();"
+                style="background:${CONFIG.surface_color}; color:${CONFIG.text_color}; border:1px solid rgba(255,255,255,0.2); font-size:${CONFIG.font_size * 0.65}px; padding:2px 4px; border-radius:4px;">
+                <option value="4" ${state.dashboardWeeksToShow === 4 ? 'selected' : ''}>Last 4</option>
+                <option value="8" ${state.dashboardWeeksToShow === 8 ? 'selected' : ''}>Last 8</option>
+                <option value="12" ${state.dashboardWeeksToShow === 12 ? 'selected' : ''}>Last 12</option>
+                <option value="52" ${state.dashboardWeeksToShow === 52 ? 'selected' : ''}>All</option>
+              </select>
+            </div>
+            <div class="space-y-1" style="max-height:400px; overflow-y:auto;">
+              ${weeks.slice(0, state.dashboardWeeksToShow).map(week => {
+                const data = byWeek[week];
+                const isOver = data.total > weeklyBudget;
+                const weekDate = new Date(week);
+                const weekEnd = new Date(weekDate);
+                weekEnd.setDate(weekEnd.getDate() + 6);
+                const weekLabel = weekDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ' - ' + weekEnd.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                return `
+                  <div class="p-2 rounded" style="background:rgba(255,255,255,0.03);">
+                    <div class="flex justify-between mb-1">
+                      <span style="color:${CONFIG.text_color}; font-size:${CONFIG.font_size * 0.7}px;">${weekLabel}</span>
+                      <span style="color:${isOver ? '#dc2626' : '#16a34a'}; font-size:${CONFIG.font_size * 0.75}px; font-weight:600;">$${data.total.toFixed(0)} ${isOver ? '⚠️' : '✓'}</span>
+                    </div>
+                    <div class="flex gap-2" style="font-size:${CONFIG.font_size * 0.65}px;">
+                      <span style="color:#16a34a;">🛒 $${data.grocery.toFixed(0)}</span>
+                      <span style="color:#f59e0b;">🍔 $${data.takeout.toFixed(0)}</span>
+                      <span style="color:${CONFIG.text_color}; opacity:0.5; margin-left:auto;">${isOver ? 'Over $' + (data.total - weeklyBudget).toFixed(0) : 'Under $' + (weeklyBudget - data.total).toFixed(0)}</span>
+                    </div>
+                    <div style="background:rgba(255,255,255,0.1); border-radius:2px; height:8px; overflow:hidden; margin-top:4px;">
+                      <div style="height:100%; width:${Math.min((data.grocery / weeklyBudget) * 100, 100)}%; background:#16a34a; display:inline-block;"></div><div style="height:100%; width:${Math.min((data.takeout / weeklyBudget) * 100, 100)}%; background:#f59e0b; display:inline-block;"></div>
+                    </div>
+                  </div>`;
+              }).join('')}
+              ${weeks.length === 0 ? `<div style="color:${CONFIG.text_color}; opacity:0.5; text-align:center; font-size:${CONFIG.font_size * 0.7}px; padding:20px;">No data yet</div>` : ''}
+            </div>
+          </div>
+          ` : ''}
+          
+          ${state.dashboardView === 'months' ? `
+          <div class="p-2 rounded mb-2" style="background:${CONFIG.surface_color};">
+            <div class="flex items-center justify-between mb-2">
+              <div style="color:${CONFIG.text_color}; font-size:${CONFIG.font_size * 0.8}px; font-weight:600;">All Months</div>
+              <select onchange="state.dashboardMonthsToShow = parseInt(this.value); render();"
+                style="background:${CONFIG.surface_color}; color:${CONFIG.text_color}; border:1px solid rgba(255,255,255,0.2); font-size:${CONFIG.font_size * 0.65}px; padding:2px 4px; border-radius:4px;">
+                <option value="6" ${state.dashboardMonthsToShow === 6 ? 'selected' : ''}>Last 6</option>
+                <option value="12" ${state.dashboardMonthsToShow === 12 ? 'selected' : ''}>Last 12</option>
+                <option value="24" ${state.dashboardMonthsToShow === 24 ? 'selected' : ''}>Last 24</option>
+                <option value="100" ${state.dashboardMonthsToShow === 100 ? 'selected' : ''}>All</option>
+              </select>
+            </div>
+            <div class="space-y-1" style="max-height:400px; overflow-y:auto;">
+              ${months.slice(0, state.dashboardMonthsToShow).map(month => {
+                const data = byMonth[month];
+                const monthDate = new Date(month + '-01');
+                const monthLabel = monthDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+                const weeksInMonth = 4.33;
+                const monthlyBudget = weeklyBudget * weeksInMonth;
+                const isOver = data.total > monthlyBudget;
+                return `
+                  <div class="p-2 rounded" style="background:rgba(255,255,255,0.03);">
+                    <div class="flex justify-between mb-1">
+                      <span style="color:${CONFIG.text_color}; font-size:${CONFIG.font_size * 0.75}px; font-weight:500;">${monthLabel}</span>
+                      <span style="color:${isOver ? '#dc2626' : '#16a34a'}; font-size:${CONFIG.font_size * 0.8}px; font-weight:600;">$${data.total.toFixed(0)}</span>
+                    </div>
+                    <div class="flex gap-2" style="font-size:${CONFIG.font_size * 0.65}px;">
+                      <span style="color:#16a34a;">🛒 $${data.grocery.toFixed(0)}</span>
+                      <span style="color:#f59e0b;">🍔 $${data.takeout.toFixed(0)}</span>
+                      <span style="color:${CONFIG.text_color}; opacity:0.5; margin-left:auto;">Budget: $${monthlyBudget.toFixed(0)}</span>
+                    </div>
+                    <div style="background:rgba(255,255,255,0.1); border-radius:2px; height:8px; overflow:hidden; margin-top:4px;">
+                      <div style="height:100%; width:${Math.min((data.grocery / monthlyBudget) * 100, 50)}%; background:#16a34a; display:inline-block;"></div><div style="height:100%; width:${Math.min((data.takeout / monthlyBudget) * 100, 50)}%; background:#f59e0b; display:inline-block;"></div>
+                    </div>
+                  </div>`;
+              }).join('')}
+              ${months.length === 0 ? `<div style="color:${CONFIG.text_color}; opacity:0.5; text-align:center; font-size:${CONFIG.font_size * 0.7}px; padding:20px;">No data yet</div>` : ''}
+            </div>
+          </div>
+          ` : ''}
+          
+          ${state.dashboardView === 'summary' ? `
           <div class="grid grid-cols-2 gap-1">
             <div class="p-2 rounded" style="background:${CONFIG.surface_color};">
               <div style="color:${CONFIG.text_color}; font-size:${CONFIG.font_size * 0.8}px; font-weight:600; margin-bottom:6px;">By Month</div>
