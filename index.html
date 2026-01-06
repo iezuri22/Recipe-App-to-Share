@@ -871,16 +871,17 @@ currentWeekStartDate: (() => {
       });
     }
 
-    // ===== RECIPE HELPERS =====
+  // ===== RECIPE HELPERS =====
     function getRecipeById(id) {
-      if (id && id.startsWith('external_')) {
+      if (!id) return null;
+      if (id.startsWith('external_')) {
         // Load external meal from storage
-        const externalMeals = storage._data.filter(d => d.type === 'external');
+        const externalMeals = (storage._data || []).filter(d => d.type === 'external');
         return externalMeals.find(m => m.id === id);
       }
+      if (!state.recipes || !Array.isArray(state.recipes)) return null;
       return state.recipes.find(r => r.__backendId === id || r.id === id);
     }
-
     function recipeThumb(r) {
       const u = (r?.image_url || '').trim();
       if (!u) return '';
