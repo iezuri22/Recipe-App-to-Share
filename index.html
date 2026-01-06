@@ -2666,13 +2666,19 @@ const totalWeeks = weeksWithData.length;
               </select>
             </div>
             <div class="space-y-1" style="max-height:400px; overflow-y:auto;">
-              ${months.slice(0, state.dashboardMonthsToShow).map(month => {
+             ${months.slice(0, state.dashboardMonthsToShow).map(month => {
                 const data = byMonth[month];
                 const monthDate = new Date(month + '-01');
                 const monthLabel = monthDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
-                const weeksInMonth = 4.33;
-                const monthlyBudget = weeklyBudget * weeksInMonth;
-                const isOver = data.total > monthlyBudget;
+                
+                // Calculate actual budget for this month based on weeks with expenses
+                const monthWeeks = weeks.filter(w => w.startsWith(month.substring(0, 7)) || 
+                  (new Date(w) >= new Date(month + '-01') && new Date(w) < new Date(new Date(month + '-01').setMonth(new Date(month + '-01').getMonth() + 1))));
+                const monthlyBudget = monthWeeks.reduce((sum, w) => {
+                  const weekData = getWeekExpenses(w);
+                  return sum + weekData.budget;
+                }, 0);
+                const isOver = monthlyBudget > 0 && data.total > monthlyBudget;
                 return `
                   <div class="p-2 rounded" style="background:rgba(255,255,255,0.03);">
                     <div class="flex justify-between mb-1">
