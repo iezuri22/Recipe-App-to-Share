@@ -2108,46 +2108,41 @@ function navigateTo(view) {
       const categories = ['Breakfast', 'Lunch', 'Vegetables', 'Dinner', 'Appetizer'];
       
       return `
-        <div class="p-6 max-w-7xl mx-auto fade-in">
-          <div class="flex items-center justify-between mb-6 mobile-stack gap-3">
-            <div>
-              <h2 class="font-bold flex items-center gap-2" style="color:${CONFIG.text_color}; font-size:${CONFIG.font_size * 1.8}px;">
-                <span>📋</span> Meal Options
-              </h2>
-              <p style="color:${CONFIG.text_color}; opacity:0.6; font-size:${CONFIG.font_size * 0.95}px; margin-top:4px;">
-                Your recipe pool for the week
-              </p>
-            </div>
-            <div class="flex gap-2">
+        <div class="p-2 max-w-7xl mx-auto">
+          <div class="flex items-center justify-between mb-2 gap-2">
+            <h2 class="font-bold" style="color:${CONFIG.text_color}; font-size:${CONFIG.font_size * 1.1}px;">
+              📋 Meal Options (${state.mealOptions.length})
+            </h2>
+            <div class="flex gap-1">
               <button type="button" onclick="openMealOptionsRecipePicker()"
-                class="px-5 py-2.5 rounded-xl button-hover flex items-center gap-2"
-                style="background:${CONFIG.primary_action_color}; color:${CONFIG.text_color}; font-size:${CONFIG.font_size}px; box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);">
-                <span>➕</span> Add Recipe
+                class="px-3 py-1.5 rounded button-hover"
+                style="background:${CONFIG.primary_action_color}; color:${CONFIG.text_color}; font-size:${CONFIG.font_size * 0.8}px;">
+                + Add
               </button>
               ${state.mealOptions.length > 0 ? `
                 <button type="button" onclick="if(confirm('Clear all meal options?')) clearAllMealOptions()"
-                  class="px-5 py-2.5 rounded-xl button-hover flex items-center gap-2"
-                  style="background:#dc2626; color:white; font-size:${CONFIG.font_size}px;">
-                  <span>🗑️</span> Clear All
+                  class="px-3 py-1.5 rounded button-hover"
+                  style="background:#dc2626; color:white; font-size:${CONFIG.font_size * 0.8}px;">
+                  Clear
                 </button>
               ` : ''}
             </div>
           </div>
 
-          <div class="space-y-6">
+          <div class="space-y-3">
             ${categories.map(category => {
               const options = state.mealOptions.filter(opt => opt.category === category);
               
               return `
                 <div>
-                  <div class="flex items-center justify-between mb-3">
-                    <h3 class="font-semibold flex items-center gap-2" style="color:${CONFIG.text_color}; font-size:${CONFIG.font_size * 1.2}px;">
-                      ${category} <span style="opacity:0.6; font-size:${CONFIG.font_size * 0.9}px;">(${options.length})</span>
+                  <div class="flex items-center justify-between mb-1">
+                    <h3 class="font-semibold" style="color:${CONFIG.text_color}; font-size:${CONFIG.font_size * 0.9}px;">
+                      ${category} (${options.length})
                     </h3>
                     <button type="button" onclick="openMealOptionsRecipePickerForCategory('${category}')"
-                      class="px-3 py-1.5 rounded button-hover"
-                      style="background:${CONFIG.primary_action_color}; color:${CONFIG.text_color}; font-size:${CONFIG.font_size * 0.85}px;">
-                      ➕ Add
+                      class="px-2 py-1 rounded button-hover"
+                      style="background:${CONFIG.primary_action_color}; color:${CONFIG.text_color}; font-size:${CONFIG.font_size * 0.75}px;">
+                      + Add
                     </button>
                   </div>
                   
