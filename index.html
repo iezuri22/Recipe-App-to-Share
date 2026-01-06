@@ -1994,19 +1994,18 @@ function navigateTo(view) {
       if (state.currentView === 'home') return '';
 
       return `
-        <nav style="background: ${CONFIG.surface_color}; box-shadow: 0 2px 8px rgba(0,0,0,0.2);" class="p-2 mb-0 sticky top-0 z-50">
+       <nav style="background: ${CONFIG.surface_color}; box-shadow: 0 2px 8px rgba(0,0,0,0.2);" class="p-3 mb-0 sticky top-0 z-50">
           <div class="max-w-7xl mx-auto flex items-center justify-between gap-2">
             <!-- Title + Page Select (inline) -->
-            <div class="flex items-center gap-2">
+            <div class="flex items-center gap-3">
               <button type="button" onclick="navigateTo('home')"
-                      style="color: ${CONFIG.text_color}; font-size: ${CONFIG.font_size * 0.95}px; font-family: ${CONFIG.font_family};"
+                      style="color: ${CONFIG.text_color}; font-size: ${CONFIG.font_size * 1.1}px; font-family: ${CONFIG.font_family};"
                       class="font-bold button-hover flex items-center gap-1">
-                <span style="font-size: 1rem;">🍽️</span>
+                <span style="font-size: 1.2rem;">🍽️</span>
                 <span class="app-title hidden sm:inline">${CONFIG.app_title}</span>
               </button>
-             <select onchange="navigateTo(this.value); this.blur();"
-                      style="background: ${CONFIG.surface_color}; color: ${CONFIG.text_color}; border: 1px solid ${CONFIG.primary_action_color}; font-family: ${CONFIG.font_family}; font-size: ${CONFIG.font_size * 0.8}px; padding: 4px 8px; border-radius: 4px;">
-                <option value="recipes" ${state.currentView === 'recipes' ? 'selected' : ''}>📚 Recipes</option>
+              <select onchange="navigateTo(this.value); this.blur();"
+                      style="background: ${CONFIG.surface_color}; color: ${CONFIG.text_color}; border: 1px solid ${CONFIG.primary_action_color}; font-family: ${CONFIG.font_family}; font-size: ${CONFIG.font_size * 0.85}px; padding: 6px 10px; border-radius: 4px;"> <option value="recipes" ${state.currentView === 'recipes' ? 'selected' : ''}>📚 Recipes</option>
                 <option value="meal-options" ${state.currentView === 'meal-options' || state.currentView === 'meal-options-recipe-picker' ? 'selected' : ''}>📋 Options</option>
                 <option value="weekly-plan" ${state.currentView === 'weekly-plan' || state.currentView === 'recipe-picker' || state.currentView === 'external-meal-picker' ? 'selected' : ''}>📅 History</option>
                 <option value="recipe-stats" ${state.currentView === 'recipe-stats' ? 'selected' : ''}>👨‍🍳 Top Cooked</option>
@@ -2016,19 +2015,19 @@ function navigateTo(view) {
             </div>
             
             <!-- Action buttons -->
-            <div class="flex items-center gap-1">
-              <div id="userIndicator" style="color: ${CONFIG.text_color}; font-size: ${CONFIG.font_size * 0.7}px; padding: 2px 6px; background: rgba(102, 126, 234, 0.2); border-radius: 4px; display: none;">
+            <div class="flex items-center gap-2">
+              <div id="userIndicator" style="color: ${CONFIG.text_color}; font-size: ${CONFIG.font_size * 0.75}px; padding: 4px 8px; background: rgba(102, 126, 234, 0.2); border-radius: 4px; display: none;">
                 <span id="userEmail"></span>
               </div>
               <button type="button" onclick="storage.loadData(); showToast('Refreshed!', 'success');"
-                      style="color: ${CONFIG.text_color}; font-size: ${CONFIG.font_size}px;"
-                      class="button-hover p-1"
+                      style="color: ${CONFIG.text_color}; font-size: ${CONFIG.font_size * 1.2}px;"
+                      class="button-hover p-2"
                       title="Refresh">
                 🔄
               </button>
               <button type="button" onclick="showSettingsMenu()"
-                      style="color: ${CONFIG.text_color}; font-size: ${CONFIG.font_size}px;"
-                      class="button-hover p-1"
+                      style="color: ${CONFIG.text_color}; font-size: ${CONFIG.font_size * 1.2}px;"
+                      class="button-hover p-2"
                       title="Settings">
                 ⚙️
               </button>
