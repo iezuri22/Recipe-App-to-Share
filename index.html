@@ -3058,255 +3058,161 @@ console.log('byMonth:', byMonth);
     }
 
     function renderRecipes() {
-      // Filter recipes based on draft status
-   let list = state.showTips 
+      if (!state.recipes || !Array.isArray(state.recipes)) return '<div class="p-3">Loading...</div>';
+      
+      let list = state.showTips 
         ? state.recipes.filter(r => r.isTip)
         : state.recipes.filter(r => !r.isDraft && !r.isTip);
 
-      // Apply other filters
       list = list.filter(r => {
         if (state.filterFavorites && !r.favorite) return false;
         if (state.filterSourceType !== 'all' && r.sourceType !== state.filterSourceType) return false;
-        if (!state.showTips && state.selectedCategory !== 'All' && r.category !== state.selectedCategory) return false; if (state.searchTerm && !(r.title || '').toLowerCase().includes(state.searchTerm.toLowerCase())) return false;
-        
-        // Filter by ingredient group
+        if (!state.showTips && state.selectedCategory !== 'All' && r.category !== state.selectedCategory) return false;
+        if (state.searchTerm && !(r.title || '').toLowerCase().includes(state.searchTerm.toLowerCase())) return false;
         if (state.filterIngredientGroup !== 'all') {
           const recipeIngredients = recipeIngList(r);
           const hasIngredientInGroup = recipeIngredients.some(ing => ing.group === state.filterIngredientGroup);
           if (!hasIngredientInGroup) return false;
         }
-        
         return true;
       });
 
-   const tipsCount = state.recipes.filter(r => r.isTip).length;
+      const tipsCount = state.recipes.filter(r => r.isTip).length;
       const publishedCount = state.recipes.filter(r => !r.isDraft && !r.isTip).length;
 
       return `
-                  <div class="p-6 max-w-7xl mx-auto fade-in">
-          <!-- Header with gradient -->
-          <div class="flex items-center justify-between mb-6 mobile-stack gap-3">
-            <div>
-              <h2 class="font-bold flex items-center gap-2" style="color:${CONFIG.text_color}; font-size:${CONFIG.font_size * 1.8}px;">
-                <span>📚</span> ${CONFIG.recipes_label}
-              </h2>
-            <p style="color:${CONFIG.text_color}; opacity:0.6; font-size:${CONFIG.font_size * 0.95}px; margin-top:4px;">
-                ${publishedCount} recipes • ${tipsCount} tips
-              </p>
+        <div class="p-2 max-w-7xl mx-auto">
+          <!-- Compact Header -->
+          <div class="flex items-center justify-between mb-2 gap-2">
+            <div class="flex items-center gap-2">
+              <button onclick="state.showTips = false; render();" 
+                class="px-2 py-1 rounded"
+                style="background:${!state.showTips ? CONFIG.primary_action_color : 'transparent'}; color:${CONFIG.text_color}; font-size:${CONFIG.font_size * 0.8}px;">
+                Recipes (${publishedCount})
+              </button>
+              <button onclick="state.showTips = true; render();" 
+                class="px-2 py-1 rounded"
+                style="background:${state.showTips ? CONFIG.primary_action_color : 'transparent'}; color:${CONFIG.text_color}; font-size:${CONFIG.font_size * 0.8}px;">
+                Tips (${tipsCount})
+              </button>
             </div>
-            <div class="flex gap-3">
-             <button type="button" onclick="openNewTip()"
-                class="px-5 py-2.5 rounded-xl button-hover flex items-center gap-2"
-                style="background:${CONFIG.secondary_action_color}; color:${CONFIG.text_color}; font-size:${CONFIG.font_size}px; box-shadow: 0 2px 8px rgba(118, 75, 162, 0.3);">
-                <span>📝</span> Save as Tip
+            <div class="flex gap-1">
+              <button type="button" onclick="openNewTip()"
+                class="px-2 py-1 rounded button-hover"
+                style="background:${CONFIG.secondary_action_color}; color:${CONFIG.text_color}; font-size:${CONFIG.font_size * 0.75}px;">
+                + Tip
               </button>
               <button type="button" onclick="openNewRecipe()"
-                class="px-5 py-2.5 rounded-xl button-hover flex items-center gap-2"
-                style="background:${CONFIG.primary_action_color}; color:${CONFIG.text_color}; font-size:${CONFIG.font_size}px; box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);">
-                <span>➕</span> Add Recipe
+                class="px-2 py-1 rounded button-hover"
+                style="background:${CONFIG.primary_action_color}; color:${CONFIG.text_color}; font-size:${CONFIG.font_size * 0.75}px;">
+                + Recipe
               </button>
             </div>
           </div>
 
-          <!-- Main Content Area -->
-          <div class="grid lg:grid-cols-[280px_1fr] gap-6">
-            <!-- Left Sidebar - Filters -->
-            <div class="space-y-4">
-              <!-- View Section -->
-              <div class="rounded-lg p-4" style="background:${CONFIG.surface_color}; border: 1px solid rgba(255,255,255,0.08);">
-                <h3 class="font-semibold mb-3 flex items-center gap-2" style="color:${CONFIG.text_color}; font-size:${CONFIG.font_size * 1.1}px;">
-                  <span>📂</span> View
-                </h3>
-                <div class="space-y-2">
-                 <button type="button" 
-                    onclick="state.showTips = false; state.selectedCategory = 'All'; render();"
-                    class="w-full px-3 py-2 rounded text-left button-hover transition-all"
-                    style="background:${!state.showTips ? CONFIG.primary_action_color : 'rgba(255,255,255,0.05)'}; color:${CONFIG.text_color}; font-size:${CONFIG.font_size}px;">
-                    📚 Recipes <span style="opacity:0.6;">(${publishedCount})</span>
-                  </button>
-                  <button type="button" 
-                    onclick="state.showTips = true; state.selectedCategory = 'All'; render();"
-                    class="w-full px-3 py-2 rounded text-left button-hover transition-all"
-                    style="background:${state.showTips ? CONFIG.primary_action_color : 'rgba(255,255,255,0.05)'}; color:${CONFIG.text_color}; font-size:${CONFIG.font_size}px;">
-                    📝 Tips & Notes <span style="opacity:0.6;">(${tipsCount})</span>
-                  </button>
-                </div>
-              </div>
-
-              <!-- Filters Accordion -->
-              <div class="rounded-lg overflow-hidden" style="background:${CONFIG.surface_color}; border: 1px solid rgba(255,255,255,0.08);">
-                <div class="p-4 border-b" style="border-color: rgba(255,255,255,0.08);">
-                  <h3 class="font-semibold flex items-center gap-2" style="color:${CONFIG.text_color}; font-size:${CONFIG.font_size * 1.1}px;">
-                    <span>🔍</span> Filters
-                  </h3>
-                </div>
-
-              <!-- Category Filter (only for published) -->
-                ${!state.showTips ? `
-                  <details open class="border-b" style="border-color: rgba(255,255,255,0.08);">
-                    <summary class="p-3 cursor-pointer hover:bg-opacity-50 font-semibold" style="color:${CONFIG.text_color}; font-size:${CONFIG.font_size * 0.95}px; list-style: none;">
-                      <span>▸</span> Category
-                    </summary>
-                    <div class="px-3 pb-3 space-y-1">
-                      <button type="button" onclick="state.selectedCategory='All'; render();"
-                        class="w-full px-3 py-2 rounded text-left button-hover text-sm"
-                        style="background:${state.selectedCategory === 'All' ? CONFIG.primary_action_color : 'transparent'}; color:${CONFIG.text_color}; font-size:${CONFIG.font_size * 0.9}px;">
-                        All Categories
-                      </button>
-                      ${MEAL_CATEGORIES.map(c => `
-                        <button type="button" onclick="state.selectedCategory='${c}'; render();"
-                          class="w-full px-3 py-2 rounded text-left button-hover text-sm"
-                          style="background:${state.selectedCategory === c ? CONFIG.primary_action_color : 'transparent'}; color:${CONFIG.text_color}; font-size:${CONFIG.font_size * 0.9}px;">
-                          ${c}
-                        </button>
-                      `).join('')}
-                    </div>
-                  </details>
-                ` : ''}
-
-                <!-- Source Filter -->
-                <details open class="border-b" style="border-color: rgba(255,255,255,0.08);">
-                  <summary class="p-3 cursor-pointer hover:bg-opacity-50 font-semibold" style="color:${CONFIG.text_color}; font-size:${CONFIG.font_size * 0.95}px; list-style: none;">
-                    <span>▸</span> Source
-                  </summary>
-                  <div class="px-3 pb-3 space-y-1">
-                    <button type="button" onclick="state.filterSourceType='all'; render();"
-                      class="w-full px-3 py-2 rounded text-left button-hover text-sm"
-                      style="background:${state.filterSourceType === 'all' ? CONFIG.primary_action_color : 'transparent'}; color:${CONFIG.text_color}; font-size:${CONFIG.font_size * 0.9}px;">
-                      📋 All Sources
-                    </button>
-                    <button type="button" onclick="state.filterSourceType='chefiq'; render();"
-                      class="w-full px-3 py-2 rounded text-left button-hover text-sm"
-                      style="background:${state.filterSourceType === 'chefiq' ? CONFIG.primary_action_color : 'transparent'}; color:${CONFIG.text_color}; font-size:${CONFIG.font_size * 0.9}px;">
-                      🤖 ChefIQ Guided
-                    </button>
-                    <button type="button" onclick="state.filterSourceType='user'; render();"
-                      class="w-full px-3 py-2 rounded text-left button-hover text-sm"
-                      style="background:${state.filterSourceType === 'user' ? CONFIG.primary_action_color : 'transparent'}; color:${CONFIG.text_color}; font-size:${CONFIG.font_size * 0.9}px;">
-                      👤 User-Created
-                    </button>
-                  </div>
-                </details>
-
-                <!-- Ingredient Group Filter -->
-                <details class="border-b" style="border-color: rgba(255,255,255,0.08);">
-                  <summary class="p-3 cursor-pointer hover:bg-opacity-50 font-semibold" style="color:${CONFIG.text_color}; font-size:${CONFIG.font_size * 0.95}px; list-style: none;">
-                    <span>▸</span> Ingredient Type
-                  </summary>
-                  <div class="px-3 pb-3 space-y-1" style="max-height: 240px; overflow-y: auto;">
-                    <button type="button" onclick="state.filterIngredientGroup='all'; render();"
-                      class="w-full px-3 py-2 rounded text-left button-hover text-sm"
-                      style="background:${state.filterIngredientGroup === 'all' ? CONFIG.primary_action_color : 'transparent'}; color:${CONFIG.text_color}; font-size:${CONFIG.font_size * 0.9}px;">
-                      🍽️ All Ingredients
-                    </button>
-                    ${ING_GROUPS.map(group => `
-                      <button type="button" onclick="state.filterIngredientGroup='${group}'; render();"
-                        class="w-full px-3 py-2 rounded text-left button-hover text-sm"
-                        style="background:${state.filterIngredientGroup === group ? CONFIG.primary_action_color : 'transparent'}; color:${CONFIG.text_color}; font-size:${CONFIG.font_size * 0.85}px;">
-                        ${group}
-                      </button>
-                    `).join('')}
-                  </div>
-                </details>
-
-                <!-- Additional Filters -->
-                <div class="p-3">
-                  <label class="flex items-center gap-2 cursor-pointer p-2 rounded hover:bg-opacity-50" style="color:${CONFIG.text_color}; font-size:${CONFIG.font_size * 0.9}px;">
-                    <input type="checkbox" ${state.filterFavorites ? 'checked' : ''}
-                      onchange="state.filterFavorites=this.checked; render();">
-                    <span>⭐</span> Favorites Only
-                  </label>
-                </div>
-              </div>
-            </div>
-
-            <!-- Right Content Area - Recipes -->
-            <div>
-              <!-- Search Bar -->
-              <div class="mb-4">
-              <input placeholder="🔍 Search recipes by name..."
-                id="recipesPageSearchInput"
-                class="w-full px-4 py-3 rounded border"
-                style="background:${CONFIG.surface_color}; color:${CONFIG.text_color}; border-color:${CONFIG.secondary_action_color}; font-size:${CONFIG.font_size}px;"
+          <!-- Collapsible Filters -->
+          <details class="mb-2">
+            <summary class="cursor-pointer px-2 py-1 rounded" style="background:${CONFIG.surface_color}; color:${CONFIG.text_color}; font-size:${CONFIG.font_size * 0.8}px; list-style:none;">
+              🔍 Filters ${state.selectedCategory !== 'All' || state.filterSourceType !== 'all' || state.filterFavorites || state.filterIngredientGroup !== 'all' ? '(active)' : ''}
+            </summary>
+            <div class="mt-1 p-2 rounded" style="background:${CONFIG.surface_color};">
+              <!-- Search -->
+              <input placeholder="Search..." id="recipesPageSearchInput"
+                class="w-full px-2 py-1 rounded border mb-2"
+                style="background:rgba(255,255,255,0.05); color:${CONFIG.text_color}; border:1px solid rgba(255,255,255,0.1); font-size:${CONFIG.font_size * 0.8}px;"
                 value="${esc(state.searchTerm)}"
                 oninput="handleRecipesPageSearch(this.value)"/>
+              
+              <!-- Filter Row 1: Category & Source -->
+              <div class="flex gap-2 mb-2 flex-wrap">
+                ${!state.showTips ? `
+                <select onchange="state.selectedCategory=this.value; render();"
+                  style="background:rgba(255,255,255,0.05); color:${CONFIG.text_color}; border:1px solid rgba(255,255,255,0.1); font-size:${CONFIG.font_size * 0.75}px; padding:4px 8px; border-radius:4px; flex:1; min-width:100px;">
+                  <option value="All" ${state.selectedCategory === 'All' ? 'selected' : ''}>All Categories</option>
+                  ${MEAL_CATEGORIES.map(c => `<option value="${c}" ${state.selectedCategory === c ? 'selected' : ''}>${c}</option>`).join('')}
+                </select>
+                ` : ''}
+                <select onchange="state.filterSourceType=this.value; render();"
+                  style="background:rgba(255,255,255,0.05); color:${CONFIG.text_color}; border:1px solid rgba(255,255,255,0.1); font-size:${CONFIG.font_size * 0.75}px; padding:4px 8px; border-radius:4px; flex:1; min-width:100px;">
+                  <option value="all" ${state.filterSourceType === 'all' ? 'selected' : ''}>All Sources</option>
+                  <option value="chefiq" ${state.filterSourceType === 'chefiq' ? 'selected' : ''}>🤖 ChefIQ</option>
+                  <option value="user" ${state.filterSourceType === 'user' ? 'selected' : ''}>👤 User</option>
+                </select>
+                <select onchange="state.filterIngredientGroup=this.value; render();"
+                  style="background:rgba(255,255,255,0.05); color:${CONFIG.text_color}; border:1px solid rgba(255,255,255,0.1); font-size:${CONFIG.font_size * 0.75}px; padding:4px 8px; border-radius:4px; flex:1; min-width:100px;">
+                  <option value="all" ${state.filterIngredientGroup === 'all' ? 'selected' : ''}>All Ingredients</option>
+                  ${ING_GROUPS.map(g => `<option value="${g}" ${state.filterIngredientGroup === g ? 'selected' : ''}>${g}</option>`).join('')}
+                </select>
               </div>
+              
+              <!-- Filter Row 2: Checkbox -->
+              <label class="flex items-center gap-1" style="color:${CONFIG.text_color}; font-size:${CONFIG.font_size * 0.75}px;">
+                <input type="checkbox" ${state.filterFavorites ? 'checked' : ''} onchange="state.filterFavorites=this.checked; render();">
+                ⭐ Favorites Only
+              </label>
+            </div>
+          </details>
 
-              <!-- Results -->
-              ${list.length === 0 ? `
-                <div class="p-12 rounded text-center" style="background:${CONFIG.surface_color}; color:${CONFIG.text_color};">
-                  <div style="font-size:3rem; margin-bottom:1rem;">📭</div>
-                <div style="font-size:${CONFIG.font_size * 1.2}px; margin-bottom:0.5rem;">
-                    ${state.showTips ? 'No tips found' : 'No recipes found'}
-                  </div>
-                 <div style="opacity:0.7; font-size:${CONFIG.font_size * 0.9}px;">
-                    ${state.searchTerm ? 'Try adjusting your search or filters' : state.showTips ? 'Start by saving a tip or cooking note' : 'Add your first recipe to get started'}
-                  </div>
-                </div>` : `
-                <div class="grid md:grid-cols-2 xl:grid-cols-3 gap-4">
-                  ${list.map(r => {
-                    const id = r.__backendId || r.id;
-                    const img = recipeThumb(r);
-                    const sourceIcon = r.sourceType === 'chefiq' ? '🤖' : '👤';
-                    return `
-                    <div class="rounded-lg overflow-hidden card-hover"
+          <!-- Results Grid -->
+          ${list.length === 0 ? `
+            <div class="p-4 rounded text-center" style="background:${CONFIG.surface_color}; color:${CONFIG.text_color};">
+              <div style="font-size:2rem;">📭</div>
+              <div style="font-size:${CONFIG.font_size * 0.85}px; opacity:0.7;">
+                ${state.showTips ? 'No tips found' : 'No recipes found'}
+              </div>
+            </div>
+          ` : `
+            <div class="grid grid-cols-2 gap-2">
+              ${list.map(r => {
+                const id = r.__backendId || r.id;
+                const img = recipeThumb(r);
+                return `
+                <div class="rounded overflow-hidden cursor-pointer"
+                  onclick="openRecipeView('${id}', null, false, ${state.showTips})"
                   style="background:${CONFIG.surface_color}; border:1px solid rgba(255,255,255,0.08);">
-                  
                   ${img ? `
-                    <div style="height:140px; overflow:hidden; ${r.recipe_url ? 'cursor:pointer;' : ''}" 
-${recipeUrl(r) ? `onclick="window.open('${esc(recipeUrl(r))}', '_blank')"` : ''}>
-<img src="${esc(img)}" style="width:100%; height:100%; object-fit:cover;" />
+                    <div style="height:60px; overflow:hidden;">
+                      <img src="${esc(img)}" style="width:100%; height:100%; object-fit:cover;" />
                     </div>
                   ` : `
-                   <div style="height:140px; background:rgba(255,255,255,0.03); display:flex; align-items:center; justify-content:center; font-size:3rem; ${recipeUrl(r) ? 'cursor:pointer;' : ''}"
-                         ${recipeUrl(r) ? `onclick="window.open('${esc(recipeUrl(r))}', '_blank')"` : ''}>
-                      📝
+                    <div style="height:60px; background:rgba(255,255,255,0.03); display:flex; align-items:center; justify-content:center; font-size:1.5rem;">
+                      ${state.showTips ? '📝' : '🍽️'}
                     </div>
                   `}
-
-                  <div class="p-4">
-                    <div class="flex items-start justify-between gap-2 mb-2">
-                      <div class="flex-1">
-                        <div class="font-semibold" style="color:${CONFIG.text_color}; font-size:${CONFIG.font_size * 1.05}px; line-height:1.3;">
+                  <div class="p-1.5">
+                    <div class="flex items-start justify-between gap-1">
+                      <div class="flex-1 min-w-0">
+                        <div class="font-semibold truncate" style="color:${CONFIG.text_color}; font-size:${CONFIG.font_size * 0.75}px;">
                           ${esc(r.title)}
                         </div>
-                        <div style="color:#667eea; font-size:${CONFIG.font_size * .8}px; font-weight:600; margin-top:4px;">
-                          📝 ${r.category || 'TIP'}
+                        <div style="color:${CONFIG.text_color}; opacity:0.6; font-size:${CONFIG.font_size * 0.65}px;">
+                          ${r.category || 'Tip'}
                         </div>
                       </div>
-                      <button type="button" class="text-xl"
-                        onclick="toggleFavorite('${id}')">
+                      <button type="button" style="font-size:0.8rem;"
+                        onclick="event.stopPropagation(); toggleFavorite('${id}')">
                         ${r.favorite ? '⭐' : '☆'}
                       </button>
                     </div>
-
-                    <div class="flex gap-2 mt-3">
-                     <button type="button"
-                        onclick="openRecipeView('${id}', null, false, true)"
-                        class="flex-1 px-2 py-1.5 rounded button-hover text-center"
-                        style="background:${CONFIG.primary_action_color}; color:${CONFIG.text_color}; font-size:${CONFIG.font_size * .85}px;">
+                    <div class="flex gap-1 mt-1">
+                      <button type="button"
+                        onclick="event.stopPropagation(); openRecipeView('${id}', null, false, ${state.showTips})"
+                        class="flex-1 px-1 py-0.5 rounded button-hover text-center"
+                        style="background:${CONFIG.primary_action_color}; color:${CONFIG.text_color}; font-size:${CONFIG.font_size * 0.65}px;">
                         View
                       </button>
                       <button type="button"
-                        onclick="openEditRecipe('${id}')"
-                        class="flex-1 px-2 py-1.5 rounded button-hover text-center"
-                        style="background:${CONFIG.secondary_action_color}; color:${CONFIG.text_color}; font-size:${CONFIG.font_size * .85}px;">
+                        onclick="event.stopPropagation(); openEditRecipe('${id}')"
+                        class="flex-1 px-1 py-0.5 rounded button-hover text-center"
+                        style="background:${CONFIG.secondary_action_color}; color:${CONFIG.text_color}; font-size:${CONFIG.font_size * 0.65}px;">
                         Edit
-                      </button>
-                      <button type="button"
-                        onclick="if(confirm('Delete this tip?')) deleteRecipe(state.recipes.find(x=>(x.__backendId||x.id)==='${id}'))"
-                        class="flex-1 px-2 py-1.5 rounded button-hover text-center"
-                        style="background:#dc2626; color:white; font-size:${CONFIG.font_size * .85}px;">
-                        Delete
                       </button>
                     </div>
                   </div>
                 </div>`;
-                  }).join('')}
-                </div>
-              `}
+              }).join('')}
             </div>
-          </div>
+          `}
         </div>`;
     }
 
