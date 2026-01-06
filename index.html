@@ -3795,8 +3795,8 @@ function showManageExpensesModal() {
                     <div>
                       <div class="font-semibold">$${exp.amount.toFixed(2)}</div>
                       <div class="text-sm text-gray-600">${formattedDate}</div>
-                      <div class="text-sm text-gray-500">${exp.note || (exp.type === 'grocery' ? 'Grocery shopping' : 'Takeout')}</div>
-                    </div>
+<div class="text-sm text-gray-500">${exp.note || ''}</div>
+</div>
                   </div>
                   <div class="flex gap-2">
                     <button onclick="editExpense('${exp.id}')" 
@@ -3846,9 +3846,9 @@ function showManageExpensesModal() {
                    class="w-full px-3 py-2 border rounded" />
           </div>
 
-          <div class="mb-4">
-            <label class="block mb-2 font-semibold">Note (optional):</label>
-            <input type="text" id="editExpenseNote" value="${expense.note || ''}" 
+        <div class="mb-4">
+            <label class="block mb-2 font-semibold">Store/Restaurant (optional):</label>
+            <input type="text" id="editExpenseNote" value="${expense.note || ''}"
                    class="w-full px-3 py-2 border rounded" 
                    placeholder="${expense.type === 'grocery' ? 'e.g., Whole Foods' : 'e.g., Chipotle'}" />
           </div>
@@ -4002,11 +4002,11 @@ function showBudgetModal() {
                    class="w-full px-3 py-2 border rounded" />
           </div>
 
-          <div class="mb-4">
-            <label class="block mb-2 font-semibold">Note (optional):</label>
-            <input type="text" id="expenseNote" 
+         <div class="mb-4">
+            <label class="block mb-2 font-semibold">Store/Restaurant (optional):</label>
+            <input type="text" id="editExpenseNote" value="${expense.note || ''}"
                    class="w-full px-3 py-2 border rounded" 
-                   placeholder="${type === 'grocery' ? 'e.g., Whole Foods' : 'e.g., Chipotle'}" />
+                   placeholder="${expense.type === 'grocery' ? 'e.g., Whole Foods' : 'e.g., Chipotle'}" />
           </div>
 
           <div class="flex gap-2 justify-end">
@@ -4230,7 +4230,7 @@ function setCurrentWeek() {
                 </div>
 
                <!-- Recent Expenses (Collapsible) -->
-${weekExpenses.expenses.length > 0 ? '<details class="mt-2"><summary style="cursor:pointer; color:' + CONFIG.text_color + '; font-size:' + (CONFIG.font_size * 0.75) + 'px; opacity:0.7; list-style:none; display:flex; align-items:center; gap:4px;"><span>▶</span> Recent (' + weekExpenses.expenses.length + ')</summary><div class="mt-1 space-y-1 max-h-32 overflow-y-auto">' + weekExpenses.expenses.sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 5).map(exp => { const [y,m,d] = exp.date.split("-"); const formattedDate = m + "/" + d + "/" + y; return '<div class="p-1.5 rounded" style="background:rgba(255,255,255,0.03); font-size:' + (CONFIG.font_size * 0.75) + 'px;"><div class="flex items-center gap-2"><span>' + (exp.type === 'grocery' ? '🛒' : '🍔') + '</span><span style="color:' + CONFIG.text_color + '; font-weight:600;">$' + exp.amount.toFixed(0) + '</span><span style="color:' + CONFIG.text_color + '; opacity:0.6; font-size:' + (CONFIG.font_size * 0.7) + 'px;">' + formattedDate + '</span></div>' + (exp.note ? '<div style="color:' + CONFIG.text_color + '; opacity:0.5; font-size:' + (CONFIG.font_size * 0.7) + 'px; margin-left:24px;">' + exp.note + '</div>' : '') + '</div>'; }).join('') + '</div></details>' : ''}                
+${weekExpenses.expenses.length > 0 ? '<details class="mt-2"><summary style="cursor:pointer; color:' + CONFIG.text_color + '; font-size:' + (CONFIG.font_size * 0.75) + 'px; opacity:0.7; list-style:none; display:flex; align-items:center; gap:4px;"><span>▶</span> Recent (' + weekExpenses.expenses.length + ')</summary><div class="mt-1 space-y-1 max-h-32 overflow-y-auto">' + weekExpenses.expenses.sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 5).map(exp => { const [y,m,d] = exp.date.split("-"); const formattedDate = m + "/" + d + "/" + y; return '<div class="p-1.5 rounded flex items-center gap-2" style="background:rgba(255,255,255,0.03); font-size:' + (CONFIG.font_size * 0.75) + 'px;"><span>' + (exp.type === 'grocery' ? '🛒' : '🍔') + '</span><span style="color:' + CONFIG.text_color + '; font-weight:600;">$' + exp.amount.toFixed(0) + '</span><span style="color:' + CONFIG.text_color + '; opacity:0.6; font-size:' + (CONFIG.font_size * 0.7) + 'px;">' + formattedDate + (exp.note ? ' • ' + exp.note : '') + '</span></div>'; }).join('') + '</div></details>' : ''}
               </div>
             `;
           })()}
