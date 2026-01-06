@@ -3110,8 +3110,8 @@ console.log('byMonth:', byMonth);
             </div>
           </div>
 
-          <!-- Collapsible Filters -->
-          <details class="mb-2">
+<!-- Collapsible Filters -->
+          <details class="mb-2" open>
             <summary class="cursor-pointer px-2 py-1 rounded" style="background:${CONFIG.surface_color}; color:${CONFIG.text_color}; font-size:${CONFIG.font_size * 0.8}px; list-style:none;">
               🔍 Filters ${state.selectedCategory !== 'All' || state.filterSourceType !== 'all' || state.filterFavorites || state.filterIngredientGroup !== 'all' ? '(active)' : ''}
             </summary>
