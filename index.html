@@ -2135,13 +2135,13 @@ function navigateTo(view) {
               
               return `
                 <div>
-                  <div class="flex items-center gap-2 mb-1">
+                 <div class="flex items-center gap-2 mb-1">
                     <h3 class="font-semibold" style="color:${CONFIG.text_color}; font-size:${CONFIG.font_size * 0.9}px;">
                       ${category} (${options.length})
                     </h3>
                     <button type="button" onclick="openMealOptionsRecipePickerForCategory('${category}')"
-                      class="px-2 py-0.5 rounded button-hover"
-                      style="background:${CONFIG.primary_action_color}; color:${CONFIG.text_color}; font-size:${CONFIG.font_size * 0.65}px;">
+                      class="px-2.5 py-1 rounded button-hover"
+                      style="background:${CONFIG.primary_action_color}; color:${CONFIG.text_color}; font-size:${CONFIG.font_size * 0.75}px;">
                       +
                     </button>
                   </div>
@@ -2162,11 +2162,11 @@ function navigateTo(view) {
                           return `
                             <div style="display:flex; align-items:center; gap:8px; background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:6px; padding:8px; flex:1; min-width:250px;">
                               ${img ? `
-                                <div style="width:40px; height:40px; flex-shrink:0; border-radius:6px; overflow:hidden; cursor:pointer;" onclick="openRecipeView('${recipe.__backendId || recipe.id}', null, false, false, true)">
+                                <div style="width:55px; height:55px; flex-shrink:0; border-radius:6px; overflow:hidden; cursor:pointer;" onclick="openRecipeView('${recipe.__backendId || recipe.id}', null, false, false, true)">
                                   <img src="${esc(img)}" style="width:100%; height:100%; object-fit:cover;" />
                                 </div>
                               ` : `
-                                <div style="width:40px; height:40px; flex-shrink:0; border-radius:6px; background:rgba(255,255,255,0.05); display:flex; align-items:center; justify-content:center; font-size:1.2rem; cursor:pointer;"
+                                <div style="width:55px; height:55px; flex-shrink:0; border-radius:6px; background:rgba(255,255,255,0.05); display:flex; align-items:center; justify-content:center; font-size:1.5rem; cursor:pointer;"
                                      onclick="openRecipeView('${recipe.__backendId || recipe.id}', null, false, false, true)">
                                   🍽️
                                 </div>
