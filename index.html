@@ -2482,16 +2482,16 @@ function navigateTo(view) {
       const allExpenses = state.budgetExpenses || [];
       
       const getWeekStart = (date) => {
-        const d = new Date(date);
+        const d = new Date(date + 'T00:00:00');
         d.setDate(d.getDate() - d.getDay());
         return d.toISOString().split('T')[0];
       };
       const getMonthKey = (date) => {
-        const d = new Date(date);
+        const d = new Date(date + 'T00:00:00');
         return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
       };
-      const getYear = (date) => new Date(date).getFullYear();
-      
+const getYear = (date) => new Date(date + 'T00:00:00').getFullYear();
+     
       const byWeek = {};
       allExpenses.forEach(exp => {
         const weekStart = getWeekStart(exp.date);
