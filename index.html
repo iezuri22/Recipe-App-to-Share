@@ -2538,6 +2538,9 @@ const totalWeeks = weeksWithData.length;
       const allTimeTakeout = allExpenses.filter(e => e.type === 'takeout').reduce((sum, e) => sum + e.amount, 0);
       const allTimeTotal = allTimeGrocery + allTimeTakeout;
       
+console.log('byMonth:', byMonth);
+      console.log('months:', months);
+      
       return `
         <div class="p-2 max-w-7xl mx-auto">
           <div class="flex items-center justify-between mb-2">
