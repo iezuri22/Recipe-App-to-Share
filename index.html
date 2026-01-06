@@ -1995,45 +1995,46 @@ function navigateTo(view) {
       if (state.currentView === 'home') return '';
 
       return `
-        <nav style="background: ${CONFIG.surface_color}; box-shadow: 0 2px 8px rgba(0,0,0,0.2);" class="p-4 mb-0 sticky top-0 z-50">
-          <div class="max-w-7xl mx-auto flex items-center justify-between mobile-stack gap-4">
-            <button type="button" onclick="navigateTo('home')"
-                    style="color: ${CONFIG.text_color}; font-size: ${CONFIG.font_size * 1.3}px; font-family: ${CONFIG.font_family};"
-                    class="font-bold button-hover flex items-center gap-2">
-              <span style="font-size: 1.5rem;">🍽️</span>
-              <span class="app-title">${CONFIG.app_title}</span>
-            </button>
-           <!-- Desktop: Show all nav buttons -->
-            <div class="hidden lg:flex gap-3 flex-wrap items-center">
+       <nav style="background: ${CONFIG.surface_color}; box-shadow: 0 2px 8px rgba(0,0,0,0.2);" class="p-2 mb-0 sticky top-0 z-50">
+          <div class="max-w-7xl mx-auto flex items-center justify-between gap-2">
+            <div class="flex items-center gap-3">
+              <button type="button" onclick="navigateTo('home')"
+                      style="color: ${CONFIG.text_color}; font-size: ${CONFIG.font_size}px; font-family: ${CONFIG.font_family};"
+                      class="font-bold button-hover flex items-center gap-1">
+                <span style="font-size: 1.2rem;">🍽️</span>
+                <span class="app-title">${CONFIG.app_title}</span>
+              </button>
+         <!-- Desktop: Show all nav buttons -->
+            <div class="hidden lg:flex gap-1 items-center">
               <button type="button" onclick="navigateTo('recipes')"
-                      style="color: ${CONFIG.text_color}; font-family: ${CONFIG.font_family}; font-size: ${CONFIG.font_size}px;"
-                      class="button-hover px-3 py-2 rounded-lg ${state.currentView === 'recipes' ? 'glass' : ''}">
-                📚 ${CONFIG.recipes_label}
+                      style="color: ${CONFIG.text_color}; font-family: ${CONFIG.font_family}; font-size: ${CONFIG.font_size * 0.85}px;"
+                      class="button-hover px-2 py-1 rounded ${state.currentView === 'recipes' ? 'glass' : ''}">
+               ${CONFIG.recipes_label}
               </button>
               <button type="button" onclick="navigateTo('meal-options')"
-                      style="color: ${CONFIG.text_color}; font-family: ${CONFIG.font_family}; font-size: ${CONFIG.font_size}px;"
-                      class="button-hover px-3 py-2 rounded-lg ${state.currentView === 'meal-options' ? 'glass' : ''}">
-                📋 Meal Options
+                      style="color: ${CONFIG.text_color}; font-family: ${CONFIG.font_family}; font-size: ${CONFIG.font_size * 0.85}px;"
+                      class="button-hover px-2 py-1 rounded ${state.currentView === 'meal-options' ? 'glass' : ''}">
+                Meal Options
               </button>
               <button type="button" onclick="navigateTo('weekly-plan')"
-                      style="color: ${CONFIG.text_color}; font-family: ${CONFIG.font_family}; font-size: ${CONFIG.font_size}px;"
-                      class="button-hover px-3 py-2 rounded-lg ${state.currentView === 'weekly-plan' ? 'glass' : ''}">
-                📅 Meal History
+                      style="color: ${CONFIG.text_color}; font-family: ${CONFIG.font_family}; font-size: ${CONFIG.font_size * 0.85}px;"
+                      class="button-hover px-2 py-1 rounded ${state.currentView === 'weekly-plan' ? 'glass' : ''}">
+                Meal History
               </button>
               <button type="button" onclick="navigateTo('tips')"
-                      style="color: ${CONFIG.text_color}; font-family: ${CONFIG.font_family}; font-size: ${CONFIG.font_size}px;"
-                      class="button-hover px-3 py-2 rounded-lg ${state.currentView === 'tips' ? 'glass' : ''}">
-                📝 Tips & Notes
+                      style="color: ${CONFIG.text_color}; font-family: ${CONFIG.font_family}; font-size: ${CONFIG.font_size * 0.85}px;"
+                      class="button-hover px-2 py-1 rounded ${state.currentView === 'tips' ? 'glass' : ''}">
+                Tips
               </button>
               <button type="button" onclick="navigateTo('recipe-stats')"
-                      style="color: ${CONFIG.text_color}; font-family: ${CONFIG.font_family}; font-size: ${CONFIG.font_size}px;"
-                      class="button-hover px-3 py-2 rounded-lg ${state.currentView === 'recipe-stats' ? 'glass' : ''}">
-                👨‍🍳 Most Cooked
+                      style="color: ${CONFIG.text_color}; font-family: ${CONFIG.font_family}; font-size: ${CONFIG.font_size * 0.85}px;"
+                      class="button-hover px-2 py-1 rounded ${state.currentView === 'recipe-stats' ? 'glass' : ''}">
+                Most Cooked
               </button>
               <button type="button" onclick="navigateTo('grocery-list')"
-                      style="color: ${CONFIG.text_color}; font-family: ${CONFIG.font_family}; font-size: ${CONFIG.font_size}px;"
-                      class="button-hover px-3 py-2 rounded-lg ${state.currentView && state.currentView.includes('grocery') ? 'glass' : ''}">
-                🛒 ${CONFIG.grocery_list_label}
+                      style="color: ${CONFIG.text_color}; font-family: ${CONFIG.font_family}; font-size: ${CONFIG.font_size * 0.85}px;"
+                      class="button-hover px-2 py-1 rounded ${state.currentView && state.currentView.includes('grocery') ? 'glass' : ''}">
+                ${CONFIG.grocery_list_label}
               </button>
             <div id="userIndicator" style="color: ${CONFIG.text_color}; font-size: ${CONFIG.font_size * 0.85}px; padding: 6px 12px; background: rgba(102, 126, 234, 0.2); border-radius: 8px; display: none;">
                 <span id="userEmail"></span>
@@ -2050,27 +2051,19 @@ function navigateTo(view) {
                       title="Settings & Export/Import">
                 ⚙️
               </button>
+           </div>
             </div>
 
-           <!-- Mobile: Dropdown menu -->
-            <div class="lg:hidden flex gap-2 items-center">
-             <div id="userIndicatorMobile" style="color: ${CONFIG.text_color}; font-size: ${CONFIG.font_size * 0.75}px; padding: 4px 8px; background: rgba(102, 126, 234, 0.2); border-radius: 6px; display: none;">
-                <span id="userEmailMobile"></span>
-              </div>
-              <button type="button" onclick="storage.loadData(); showToast('Refreshed!', 'success');"
-                      style="color: ${CONFIG.text_color}; font-family: ${CONFIG.font_family}; font-size: ${CONFIG.font_size * 1.3}px;"
-                      class="button-hover p-2 rounded-lg hover:glass"
-                      title="Refresh">
-                🔄
-              </button>
-              <select onchange="navigateTo(this.value); this.blur();"
-                      style="background: ${CONFIG.surface_color}; color: ${CONFIG.text_color}; border: 1px solid ${CONFIG.primary_action_color}; font-family: ${CONFIG.font_family}; font-size: ${CONFIG.font_size}px; padding: 8px 12px; border-radius: 8px;">
-                <option value="recipes" ${state.currentView === 'recipes' ? 'selected' : ''}>📚 ${CONFIG.recipes_label}</option>
-                <option value="meal-options" ${state.currentView === 'meal-options' || state.currentView === 'meal-options-recipe-picker' ? 'selected' : ''}>📋 Meal Options</option>
-                <option value="weekly-plan" ${state.currentView === 'weekly-plan' || state.currentView === 'recipe-picker' || state.currentView === 'external-meal-picker' ? 'selected' : ''}>📅 Meal History</option>
-                <option value="tips" ${state.currentView === 'tips' ? 'selected' : ''}>📝 Tips & Notes</option>
-                <option value="recipe-stats" ${state.currentView === 'recipe-stats' ? 'selected' : ''}>👨‍🍳 Most Cooked</option>
-                <option value="grocery-list" ${state.currentView && state.currentView.includes('grocery') ? 'selected' : ''}>🛒 ${CONFIG.grocery_list_label}</option>
+            <!-- Mobile: Dropdown menu -->
+            <div class="lg:hidden flex gap-1 items-center">
+             <select onchange="navigateTo(this.value); this.blur();"
+                      style="background: ${CONFIG.surface_color}; color: ${CONFIG.text_color}; border: 1px solid ${CONFIG.primary_action_color}; font-family: ${CONFIG.font_family}; font-size: ${CONFIG.font_size * 0.85}px; padding: 4px 8px; border-radius: 4px;">
+               <option value="recipes" ${state.currentView === 'recipes' ? 'selected' : ''}>${CONFIG.recipes_label}</option>
+                <option value="meal-options" ${state.currentView === 'meal-options' || state.currentView === 'meal-options-recipe-picker' ? 'selected' : ''}>Meal Options</option>
+                <option value="weekly-plan" ${state.currentView === 'weekly-plan' || state.currentView === 'recipe-picker' || state.currentView === 'external-meal-picker' ? 'selected' : ''}>History</option>
+                <option value="tips" ${state.currentView === 'tips' ? 'selected' : ''}>Tips</option>
+                <option value="recipe-stats" ${state.currentView === 'recipe-stats' ? 'selected' : ''}>Most Cooked</option>
+                <option value="grocery-list" ${state.currentView && state.currentView.includes('grocery') ? 'selected' : ''}>Grocery</option>
               </select>
            <div id="userIndicator" style="color: ${CONFIG.text_color}; font-size: ${CONFIG.font_size * 0.85}px; padding: 6px 12px; background: rgba(102, 126, 234, 0.2); border-radius: 8px; display: none;">
                 <span id="userEmail"></span>
@@ -2081,10 +2074,17 @@ function navigateTo(view) {
                       title="Refresh Data">
                 🔄
               </button>
-             <button type="button" onclick="showSettingsMenu()"
-                      style="color: ${CONFIG.text_color}; font-family: ${CONFIG.font_family}; font-size: ${CONFIG.font_size * 1.3}px;"
-                      class="button-hover p-2 rounded-lg hover:glass"
-                      title="Settings & Export/Import">
+            </select>
+              <button type="button" onclick="storage.loadData(); showToast('Refreshed!', 'success');"
+                      style="color: ${CONFIG.text_color}; font-size: ${CONFIG.font_size}px;"
+                      class="button-hover p-1"
+                      title="Refresh">
+                🔄
+              </button>
+              <button type="button" onclick="showSettingsMenu()"
+                      style="color: ${CONFIG.text_color}; font-size: ${CONFIG.font_size}px;"
+                      class="button-hover p-1"
+                      title="Settings">
                 ⚙️
               </button>
             </div>
