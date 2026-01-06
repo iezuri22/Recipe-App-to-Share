@@ -2129,20 +2129,20 @@ function navigateTo(view) {
             </div>
           </div>
 
-          <div class="space-y-3">
+         <div class="space-y-3">
             ${categories.map(category => {
               const options = state.mealOptions.filter(opt => opt.category === category);
               
               return `
                 <div>
-                  <div class="flex items-center justify-between mb-1">
+                  <div class="flex items-center gap-2 mb-1">
                     <h3 class="font-semibold" style="color:${CONFIG.text_color}; font-size:${CONFIG.font_size * 0.9}px;">
                       ${category} (${options.length})
                     </h3>
                     <button type="button" onclick="openMealOptionsRecipePickerForCategory('${category}')"
-                      class="px-2 py-1 rounded button-hover"
-                      style="background:${CONFIG.primary_action_color}; color:${CONFIG.text_color}; font-size:${CONFIG.font_size * 0.75}px;">
-                      + Add
+                      class="px-2 py-0.5 rounded button-hover"
+                      style="background:${CONFIG.primary_action_color}; color:${CONFIG.text_color}; font-size:${CONFIG.font_size * 0.65}px;">
+                      +
                     </button>
                   </div>
                   
