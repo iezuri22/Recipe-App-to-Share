@@ -941,8 +941,8 @@ const MEAL_CATEGORIES = ['Breakfast', 'Lunch', 'Vegetables', 'Dinner', 'Appetize
     notes: '',
     instructions: '',
     ingredientsRows: [{ qty: '', unit: '', name: '', group: 'Produce' }],
-    sourceType: 'chefiq',
-  isDraft: false,
+    sourceType: 'user',
+    isDraft: false,
     isTip: false,
     timesCooked: 0
   };
@@ -1288,7 +1288,6 @@ function openRecipeView(id, fromPlan = null, fromStats = false, fromTips = false
 
       if (!title) return showError(state.recipeForm.isTip ? 'Tip Title is required.' : 'Recipe Title is required.');
       if (!cat) return showError('Category is required.');
-      if (!state.recipeForm.isTip && !url) return showError('Recipe URL is required.');
 
       const rows = (state.recipeForm.ingredientsRows || [])
         .map(r => ({
@@ -1297,10 +1296,7 @@ function openRecipeView(id, fromPlan = null, fromStats = false, fromTips = false
           name: (r.name || '').trim(),
           group: r.group || 'Other'
         }))
-        .filter(r => r.name);
-
-if (!state.recipeForm.isTip && !rows.length) return showError('Add at least 1 ingredient.');
-      const payload = {
+        .filter(r => r.name); const payload = {
         ...state.recipeForm,
         title,
         category: cat,
@@ -3342,9 +3338,9 @@ ${list.map(r => {
               `}
             </div>
 
-            ${!state.recipeForm.isTip ? `
+           ${!state.recipeForm.isTip ? `
               <div class="mt-5">
-                <label class="block mb-2 font-semibold" style="color:${CONFIG.text_color};">Recipe URL *</label>
+                <label class="block mb-2 font-semibold" style="color:${CONFIG.text_color};">Recipe URL (optional)</label>
                 <input class="w-full px-4 py-3 rounded border" placeholder="https://..."
                   style="background:rgba(0,0,0,0.18); color:${CONFIG.text_color}; border-color:rgba(255,255,255,0.12);"
                   value="${esc(state.recipeForm.recipe_url || '')}"
@@ -3584,10 +3580,10 @@ ${r.isTip ? `<div style="color:#667eea; font-weight:600; margin-top:8px;">📝 T
             <div class="mt-6">
               <div class="font-semibold mb-2" style="color:${CONFIG.text_color};">Step-by-step Instructions</div>
               ${instructionSteps.length ? `
-                <ol class="space-y-3" style="color:${CONFIG.text_color}; opacity:.9; list-style: none; counter-reset: step-counter;">
+              <ol class="space-y-3" style="color:${CONFIG.text_color}; opacity:.9; list-style: none;">
                   ${instructionSteps.map((step, idx) => `
-                    <li style="counter-increment: step-counter; padding-left: 2.5rem; position: relative;">
-                      <span style="position: absolute; left: 0; font-weight: 600; color: ${CONFIG.primary_action_color};">
+                    <li style="padding-left: 4rem; position: relative;">
+                      <span style="position: absolute; left: 0; font-weight: 600; color: ${CONFIG.primary_action_color}; white-space: nowrap;">
                         Step ${idx + 1}:
                       </span>
                       ${esc(step)}
