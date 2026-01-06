@@ -2886,13 +2886,7 @@ function navigateTo(view) {
                 Tips (${state.recipes.filter(r => r.isTip).length})
               </button>
             </div>
-            <div class="flex gap-3">
-             <button type="button" onclick="openNewTip()"
-                class="px-5 py-2.5 rounded-xl button-hover flex items-center gap-2"
-                style="background:${CONFIG.secondary_action_color}; color:${CONFIG.text_color}; font-size:${CONFIG.font_size}px; box-shadow: 0 2px 8px rgba(118, 75, 162, 0.3);">
-                <span>📝</span> Save as Tip
-              </button>
-              <button type="button" onclick="${state.showRecipesOrTips === 'tips' ? 'openNewTip()' : 'openNewRecipe()'}"
+            <button type="button" onclick="${state.showRecipesOrTips === 'tips' ? 'openNewTip()' : 'openNewRecipe()'}"
               class="px-2 py-1 rounded button-hover"
               style="background:${CONFIG.primary_action_color}; color:${CONFIG.text_color}; font-size:${CONFIG.font_size * 0.85}px;">
               + ${state.showRecipesOrTips === 'tips' ? 'Tip' : 'Recipe'}
