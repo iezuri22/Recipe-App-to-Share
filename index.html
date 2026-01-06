@@ -3281,11 +3281,16 @@ ${list.map(r => {
          <h2 class="font-bold" style="color:${CONFIG.text_color}; font-size:${CONFIG.font_size * 1.6}px;">
               ${state.recipeForm.id ? 'Edit ' : 'New '}${state.recipeForm.isTip ? 'Tip' : 'Recipe'}
             </h2>
-            <div class="flex gap-2">
+           <div class="flex gap-2">
               <button type="button" onclick="closeRecipeEditor()"
                 class="px-4 py-2 rounded button-hover"
                 style="background:${CONFIG.secondary_action_color}; color:${CONFIG.text_color};">Cancel</button>
-            <button type="button" onclick="saveRecipeForm()"
+              ${state.recipeForm.id ? `
+                <button type="button" onclick="if(confirm('Delete this ${state.recipeForm.isTip ? 'tip' : 'recipe'}?')) { deleteRecipe(state.recipeForm); closeRecipeEditor(); }"
+                  class="px-4 py-2 rounded button-hover"
+                  style="background:#dc2626; color:white;">Delete</button>
+              ` : ''}
+              <button type="button" onclick="saveRecipeForm()"
                 class="px-4 py-2 rounded button-hover"
                 style="background:${CONFIG.primary_action_color}; color:${CONFIG.text_color};">
                 ${state.recipeForm.isTip ? 'Save Tip' : 'Save Recipe'}
