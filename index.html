@@ -3785,13 +3785,17 @@ function showManageExpensesModal() {
             </div>
           ` : `
             <div class="max-h-96 overflow-y-auto space-y-2">
-              ${expenses.map(exp => `
+              ${expenses.map(exp => {
+                const [y,m,d] = exp.date.split('-');
+                const formattedDate = m + '/' + d + '/' + y;
+                return `
                 <div class="flex items-center justify-between p-3 bg-gray-50 rounded">
                   <div class="flex items-center gap-3 flex-1">
                     <span style="font-size:1.5rem;">${exp.type === 'grocery' ? '🛒' : '🍔'}</span>
                     <div>
                       <div class="font-semibold">$${exp.amount.toFixed(2)}</div>
-                      <div class="text-sm text-gray-600">${exp.date} • ${exp.note || (exp.type === 'grocery' ? 'Grocery shopping' : 'Takeout')}</div>
+                      <div class="text-sm text-gray-600">${formattedDate}</div>
+                      <div class="text-sm text-gray-500">${exp.note || (exp.type === 'grocery' ? 'Grocery shopping' : 'Takeout')}</div>
                     </div>
                   </div>
                   <div class="flex gap-2">
@@ -3804,8 +3808,8 @@ function showManageExpensesModal() {
                       Delete
                     </button>
                   </div>
-                </div>
-              `).join('')}
+                </div>`;
+              }).join('')}
             </div>
           `}
           
@@ -4226,8 +4230,7 @@ function setCurrentWeek() {
                 </div>
 
                <!-- Recent Expenses (Collapsible) -->
-                ${weekExpenses.expenses.length > 0 ? '<details class="mt-3"><summary style="cursor:pointer; color:' + CONFIG.text_color + '; font-size:' + (CONFIG.font_size * 0.85) + 'px; opacity:0.8; list-style:none; display:flex; align-items:center; gap:4px;"><span>▶</span> Recent (' + weekExpenses.expenses.length + ')</summary><div class="mt-2 space-y-1 max-h-32 overflow-y-auto">' + weekExpenses.expenses.sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 5).map(exp => '<div class="flex items-center gap-2 p-1.5 rounded" style="background:rgba(255,255,255,0.03); font-size:' + (CONFIG.font_size * 0.8) + 'px;"><span>' + (exp.type === 'grocery' ? '🛒' : '🍔') + '</span><span style="color:' + CONFIG.text_color + '; font-weight:600;">$' + exp.amount.toFixed(0) + '</span><span style="color:' + CONFIG.text_color + '; opacity:0.6;">' + (exp.note || exp.date) + '</span></div>').join('') + '</div></details>' : ''}
-                
+${weekExpenses.expenses.length > 0 ? '<details class="mt-2"><summary style="cursor:pointer; color:' + CONFIG.text_color + '; font-size:' + (CONFIG.font_size * 0.75) + 'px; opacity:0.7; list-style:none; display:flex; align-items:center; gap:4px;"><span>▶</span> Recent (' + weekExpenses.expenses.length + ')</summary><div class="mt-1 space-y-1 max-h-32 overflow-y-auto">' + weekExpenses.expenses.sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 5).map(exp => { const [y,m,d] = exp.date.split("-"); const formattedDate = m + "/" + d + "/" + y; return '<div class="p-1.5 rounded" style="background:rgba(255,255,255,0.03); font-size:' + (CONFIG.font_size * 0.75) + 'px;"><div class="flex items-center gap-2"><span>' + (exp.type === 'grocery' ? '🛒' : '🍔') + '</span><span style="color:' + CONFIG.text_color + '; font-weight:600;">$' + exp.amount.toFixed(0) + '</span><span style="color:' + CONFIG.text_color + '; opacity:0.6; font-size:' + (CONFIG.font_size * 0.7) + 'px;">' + formattedDate + '</span></div>' + (exp.note ? '<div style="color:' + CONFIG.text_color + '; opacity:0.5; font-size:' + (CONFIG.font_size * 0.7) + 'px; margin-left:24px;">' + exp.note + '</div>' : '') + '</div>'; }).join('') + '</div></details>' : ''}                
               </div>
             `;
           })()}
