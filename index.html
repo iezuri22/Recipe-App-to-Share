@@ -2030,10 +2030,15 @@ function navigateTo(view) {
                       class="button-hover px-3 py-2 rounded-lg ${state.currentView === 'recipe-stats' ? 'glass' : ''}">
                 👨‍🍳 Most Cooked
               </button>
-              <button type="button" onclick="navigateTo('grocery-list')"
+             <button type="button" onclick="navigateTo('grocery-list')"
                       style="color: ${CONFIG.text_color}; font-family: ${CONFIG.font_family}; font-size: ${CONFIG.font_size}px;"
                       class="button-hover px-3 py-2 rounded-lg ${state.currentView && state.currentView.includes('grocery') ? 'glass' : ''}">
                 🛒 ${CONFIG.grocery_list_label}
+              </button>
+              <button type="button" onclick="navigateTo('budget-dashboard')"
+                      style="color: ${CONFIG.text_color}; font-family: ${CONFIG.font_family}; font-size: ${CONFIG.font_size}px;"
+                      class="button-hover px-3 py-2 rounded-lg ${state.currentView === 'budget-dashboard' ? 'glass' : ''}">
+                📊 Dashboard
               </button>
             <div id="userIndicator" style="color: ${CONFIG.text_color}; font-size: ${CONFIG.font_size * 0.85}px; padding: 6px 12px; background: rgba(102, 126, 234, 0.2); border-radius: 8px; display: none;">
                 <span id="userEmail"></span>
