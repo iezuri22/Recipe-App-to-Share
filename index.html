@@ -2671,7 +2671,8 @@ console.log('byMonth:', byMonth);
             <div class="space-y-1" style="max-height:400px; overflow-y:auto;">
              ${months.slice(0, state.dashboardMonthsToShow).map(month => {
                 const data = byMonth[month];
-                const monthDate = new Date(month + '-01');
+                const [year, mon] = month.split('-');
+                const monthDate = new Date(parseInt(year), parseInt(mon) - 1, 1);
                 const monthLabel = monthDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
                 
                 // Calculate actual budget for this month based on weeks with expenses
