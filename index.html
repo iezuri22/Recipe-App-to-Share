@@ -3163,26 +3163,12 @@ ${list.map(r => {
                       ${state.showTips ? '📝' : '🍽️'}
                     </div>
                   `}
-                  <div class="p-2">
+                 <div class="p-2">
                     <div class="font-semibold truncate" style="color:${CONFIG.text_color}; font-size:${CONFIG.font_size * 0.8}px;">
                       ${esc(r.title)} ${r.favorite ? '⭐' : ''}
                     </div>
                     <div style="color:${CONFIG.text_color}; opacity:0.5; font-size:${CONFIG.font_size * 0.65}px;">
                       ${r.category || 'Tip'}
-                    </div>
-                    <div class="flex gap-1 mt-1.5">
-                      <button type="button"
-                        onclick="event.stopPropagation(); openRecipeView('${id}', null, false, ${state.showTips})"
-                        class="px-3 py-1.5 rounded button-hover"
-                        style="background:${CONFIG.primary_action_color}; color:${CONFIG.text_color}; font-size:${CONFIG.font_size * 0.75}px;">
-                        View
-                      </button>
-                      <button type="button"
-                        onclick="event.stopPropagation(); openEditRecipe('${id}')"
-                        class="px-3 py-1.5 rounded button-hover"
-                        style="background:${CONFIG.secondary_action_color}; color:${CONFIG.text_color}; font-size:${CONFIG.font_size * 0.75}px;">
-                        Edit
-                      </button>
                     </div>
                   </div>
                 </div>`;
