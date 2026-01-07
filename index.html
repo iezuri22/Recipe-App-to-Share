@@ -1397,15 +1397,18 @@ showToast(payload.isTip ? 'Tip saved!' : 'Recipe saved!', 'success');        clo
         render();
       }
     }
-   function addToMealOptions(recipeId, category) {
+  function addToMealOptions(recipeId, category) {
       const recipe = getRecipeById(recipeId);
       if (!recipe) {
         showError('Recipe not found');
         return;
       }
       
+      // Use the backend ID if available for consistency
+      const actualId = recipe.__backendId || recipe.id;
+      
       // Check if already in meal options
-      if (state.mealOptions.some(opt => opt.recipeId === recipeId)) {
+      if (state.mealOptions.some(opt => opt.recipeId === actualId || opt.recipeId === recipeId)) {
         showToast('Already in Meal Options!', 'info');
         return;
       }
@@ -1426,7 +1429,7 @@ showToast(payload.isTip ? 'Tip saved!' : 'Recipe saved!', 'success');        clo
       
       const newOption = {
         id: `mealopt_${Date.now()}_${Math.random().toString(36).slice(2)}`,
-        recipeId: recipeId,
+        recipeId: actualId,
         category: mealCategory
       };
       
