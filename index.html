@@ -2391,26 +2391,6 @@ function navigateTo(view) {
                       </button>
                     </div>
 
-                   <div class="flex gap-2 mt-3">
-                      <button type="button"
-                        onclick="event.stopPropagation(); openRecipeView('${id}', null, false, true)"
-                        class="flex-1 px-2 py-1.5 rounded button-hover text-center"
-                        style="background:${CONFIG.primary_action_color}; color:${CONFIG.text_color}; font-size:${CONFIG.font_size * .85}px;">
-                        View
-                      </button>
-                      <button type="button"
-                        onclick="event.stopPropagation(); openEditRecipe('${id}')"
-                        class="flex-1 px-2 py-1.5 rounded button-hover text-center"
-                        style="background:${CONFIG.secondary_action_color}; color:${CONFIG.text_color}; font-size:${CONFIG.font_size * .85}px;">
-                        Edit
-                      </button>
-                      <button type="button"
-                        onclick="event.stopPropagation(); if(confirm('Delete this tip?')) deleteRecipe(state.recipes.find(x=>(x.__backendId||x.id)==='${id}'))"
-                        class="flex-1 px-2 py-1.5 rounded button-hover text-center"
-                        style="background:#dc2626; color:white; font-size:${CONFIG.font_size * .85}px;">
-                        Delete
-                      </button>
-                    </div>
                   </div>
                 </div>`;
               }).join('')}
