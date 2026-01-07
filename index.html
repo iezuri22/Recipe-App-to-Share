@@ -1912,6 +1912,7 @@ function getPlannedMealsForWeek(weekStart) {
 
    async function toggleGroceryItem(ingredientKey) {
       let item = state.groceryItems.find(gi => gi.ingredientKey === ingredientKey);
+      let isNew = false;
 
       // Optimistic update - toggle immediately
       if (item) {
@@ -1927,22 +1928,27 @@ function getPlannedMealsForWeek(weekStart) {
           checked: true
         };
         state.groceryItems.push(item);
+        isNew = true;
       }
       
       render();
 
       // Save to database in background
       try {
-        if (item.id.startsWith('grocery_')) {
-          const existing = state.groceryItems.find(gi => gi.id === item.id && gi.ingredientKey === ingredientKey);
-          if (existing) {
-            await storage.update(item);
-          } else {
-            await storage.create(item);
-          }
+        if (isNew) {
+          await storage.create(item);
+        } else {
+          await storage.update(item);
         }
       } catch (e) {
         console.error('Failed to save grocery toggle:', e);
+        // Revert on error
+        if (isNew) {
+          state.groceryItems = state.groceryItems.filter(gi => gi.id !== item.id);
+        } else {
+          item.checked = !item.checked;
+        }
+        render();
       }
     }
 
