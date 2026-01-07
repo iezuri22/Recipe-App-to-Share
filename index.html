@@ -1425,8 +1425,7 @@ showToast(payload.isTip ? 'Tip saved!' : 'Recipe saved!', 'success');        clo
         'Appetizer': 'Appetizer'
       };
       
-      const mealCategory = category || categoryMap[recipe.category] || 'Dinner';
-      
+const mealCategory = category || categoryMap[recipe.category] || recipe.category || 'Dinner';      
       const newOption = {
         id: `mealopt_${Date.now()}_${Math.random().toString(36).slice(2)}`,
         recipeId: actualId,
