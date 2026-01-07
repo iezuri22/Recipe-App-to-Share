@@ -4396,7 +4396,12 @@ if (state.recipePickerSearchTerm && !r.title.toLowerCase().includes(state.recipe
       `;
     }
 
-    function renderExternalMealPicker() {
+ function renderExternalMealPicker() {
+      // Convert old string format to new object format if needed
+      const types = state.externalMealTypes.map(t => 
+        typeof t === 'string' ? { name: t, emoji: '🍽️' } : t
+      );
+      
       return `
         <div class="p-6 max-w-4xl mx-auto">
           <div class="flex items-center justify-between mb-6 mobile-stack gap-3">
@@ -4411,13 +4416,13 @@ if (state.recipePickerSearchTerm && !r.title.toLowerCase().includes(state.recipe
           </div>
 
           <div class="grid md:grid-cols-2 gap-3">
-            ${state.externalMealTypes.map(type => `
+            ${types.map(type => `
               <button type="button"
-                      onclick="handleExternalMealSelect('${esc(type)}')"
+                      onclick="handleExternalMealSelect('${esc(type.name)}')"
                       style="background: ${CONFIG.surface_color}; color: ${CONFIG.text_color}; font-family: ${CONFIG.font_family}, sans-serif; font-size: ${CONFIG.font_size * 1.1}px;"
                       class="p-6 rounded card-hover text-left flex items-center gap-3">
-                <span style="font-size: 2rem;">🍴</span>
-                <span class="font-semibold">${esc(type)}</span>
+                <span style="font-size: 2rem;">${type.emoji || '🍽️'}</span>
+                <span class="font-semibold">${esc(type.name)}</span>
               </button>
             `).join('')}
           </div>
@@ -4470,6 +4475,11 @@ if (state.recipePickerSearchTerm && !r.title.toLowerCase().includes(state.recipe
           <div class="mb-4">
             <label class="block mb-2 font-semibold">Add New Type:</label>
             <div class="flex gap-2">
+              <input type="text" id="newExternalMealEmoji" 
+                     class="w-16 px-3 py-2 border rounded text-center text-xl"
+                     placeholder="🍽️" 
+                     maxlength="4"
+                     value="🍽️" />
               <input type="text" id="newExternalMealType" 
                      class="flex-1 px-3 py-2 border rounded"
                      placeholder="e.g., Office Cafeteria" />
