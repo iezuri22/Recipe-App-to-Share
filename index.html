@@ -2053,7 +2053,8 @@ function getPlannedMealsForWeek(weekStart) {
         state.mealSelections = data.filter(d => d.id && d.id.startsWith('mealSel_'));
         state.groceryItems = data.filter(d => d.ingredientKey);
        state.mealOptions = data.filter(d => d.id && d.id.startsWith('mealOption_'));
-      state.budgetExpenses = data.filter(d => d.id && d.id.startsWith('expense_'));
+state.budgetExpenses = data.filter(d => d.id && d.id.startsWith('expense_'));
+      state.weekBudgets = data.filter(d => d.id && d.id.startsWith('weekBudget_'));
         const budgetConfig = data.find(d => d.id === 'config_budgets');
         if (budgetConfig?.grocery) state.groceryBudget = budgetConfig.grocery;
         if (budgetConfig?.takeout) state.takeoutBudget = budgetConfig.takeout;
@@ -4013,24 +4014,33 @@ function showBudgetModal() {
         showError('Please enter valid budget amounts');
         return;
       }
-
+      
       state.isLoading = true;
       closeModal();
       render();
-
+      
       try {
-        const budgetConfig = {
-          id: 'config_budgets',
+        // Save per-week budget
+        const weekBudgetId = `weekBudget_${state.currentWeekStartDate}`;
+        const weekBudget = {
+          id: weekBudgetId,
+          weekStart: state.currentWeekStartDate,
           grocery: grocery,
           takeout: takeout
         };
-        await storage.update(budgetConfig);
-        state.groceryBudget = grocery;
-        state.takeoutBudget = takeout;
-        showToast('Budgets saved!', 'success');
+        
+        // Check if exists
+        const existing = state.weekBudgets?.find(b => b.id === weekBudgetId);
+        if (existing) {
+          await storage.update(weekBudget);
+        } else {
+          await storage.create(weekBudget);
+        }
+        
+        showToast('Budget saved for this week!', 'success');
       } catch (e) {
         console.error(e);
-        showError('Failed to save budgets');
+        showError('Failed to save budget');
       } finally {
         state.isLoading = false;
         render();
@@ -4150,7 +4160,7 @@ function showBudgetModal() {
       const grocery = expenses.filter(e => e.type === 'grocery').reduce((sum, e) => sum + e.amount, 0);
       const takeout = expenses.filter(e => e.type === 'takeout').reduce((sum, e) => sum + e.amount, 0);
       
-      // Determine budget for this week
+   // Determine budget for this week
       const today = new Date();
       const weekStart = new Date(weekStartDate + 'T00:00:00');
       const currentWeekStart = new Date(today);
@@ -4160,10 +4170,25 @@ function showBudgetModal() {
       const isCurrentOrFutureWeek = weekStart >= currentWeekStart;
       const hasExpenses = expenses.length > 0;
       
-      // Current/future weeks OR past weeks with expenses get the default budget
-      // Past weeks with no expenses get $0 budget (excluded from stats)
-      const groceryBudget = (isCurrentOrFutureWeek || hasExpenses) ? state.groceryBudget : 0;
-      const takeoutBudget = (isCurrentOrFutureWeek || hasExpenses) ? state.takeoutBudget : 0;
+      // Check for per-week budget override
+      const weekBudget = state.weekBudgets?.find(b => b.weekStart === weekStartDate);
+      
+      let groceryBudget, takeoutBudget;
+      
+      if (weekBudget) {
+        // Use per-week budget if set
+        groceryBudget = weekBudget.grocery;
+        takeoutBudget = weekBudget.takeout;
+      } else if (isCurrentOrFutureWeek || hasExpenses) {
+        // Current/future weeks OR past weeks with expenses get the default budget
+        groceryBudget = state.groceryBudget;
+        takeoutBudget = state.takeoutBudget;
+      } else {
+        // Past weeks with no expenses get $0 budget (excluded from stats)
+        groceryBudget = 0;
+        takeoutBudget = 0;
+      }
+      
       const budget = groceryBudget + takeoutBudget;
       
       return { grocery, takeout, total: grocery + takeout, expenses, budget, groceryBudget, takeoutBudget };
