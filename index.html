@@ -308,8 +308,15 @@ const MEAL_CATEGORIES = ['Breakfast', 'Lunch', 'Vegetables', 'Dinner', 'Appetize
   weeklyBudget: 200,
   groceryBudget: 150,
   takeoutBudget: 50,
-  externalMealTypes: ['Eating Out', 'Takeout/Delivery', 'Leftovers', 'At Family/Friends', 'Work Lunch', 'Meal Prep'],
-  selectedDayForRecipe: null,
+externalMealTypes: [
+    { name: 'Eating Out', emoji: '🍽️' },
+    { name: 'Takeout/Delivery', emoji: '🥡' },
+    { name: 'Leftovers', emoji: '📦' },
+    { name: 'At Family/Friends', emoji: '👨‍👩‍👧' },
+    { name: 'Work Lunch', emoji: '💼' },
+    { name: 'Meal Prep', emoji: '🥗' }
+  ],
+      selectedDayForRecipe: null,
   selectedMealForRecipe: null,
   selectedCategory: 'All',
   searchTerm: '',
@@ -875,6 +882,18 @@ const MEAL_CATEGORIES = ['Breakfast', 'Lunch', 'Vegetables', 'Dinner', 'Appetize
           }
         }
       });
+    }
+
+   function getExternalMealType(name) {
+      const type = state.externalMealTypes.find(t => 
+        typeof t === 'string' ? t === name : t.name === name
+      );
+      if (!type) return { name: name, emoji: '🍽️' };
+      return typeof type === 'string' ? { name: type, emoji: '🍽️' } : type;
+    }
+
+    function getExternalMealTypeName(type) {
+      return typeof type === 'string' ? type : type.name;
     }
 
   // ===== RECIPE HELPERS =====
@@ -2955,27 +2974,95 @@ console.log('byMonth:', byMonth);
       `);
     }
 
-    async function addExternalMealType() {
-      const input = document.getElementById('newExternalMealType');
-      const newType = input.value.trim();
+   async function addExternalMealType() {
+      const nameInput = document.getElementById('newExternalMealType');
+      const emojiInput = document.getElementById('newExternalMealEmoji');
+      const newName = nameInput.value.trim();
+      const newEmoji = emojiInput.value.trim() || '🍽️';
       
-      if (!newType) {
+      if (!newName) {
         showError('Please enter a meal type name');
         return;
       }
 
-      if (state.externalMealTypes.includes(newType)) {
+      // Convert old format if needed
+      state.externalMealTypes = state.externalMealTypes.map(t => 
+        typeof t === 'string' ? { name: t, emoji: '🍽️' } : t
+      );
+
+      if (state.externalMealTypes.some(t => t.name === newName)) {
         showError('This type already exists');
         return;
       }
 
-      state.externalMealTypes.push(newType);
+      state.externalMealTypes.push({ name: newName, emoji: newEmoji });
       await saveExternalMealTypesConfig();
       showManageExternalMealTypes();
     }
 
-    async function removeExternalMealType(index) {
+    function editExternalMealType(idx) {
+      // Convert old format if needed
+      state.externalMealTypes = state.externalMealTypes.map(t => 
+        typeof t === 'string' ? { name: t, emoji: '🍽️' } : t
+      );
+      
+      const type = state.externalMealTypes[idx];
+      
+      openModal(`
+        <div style="color: #1a1a2e;">
+          <h2 class="text-2xl font-bold mb-4">Edit External Meal Type</h2>
+          
+          <div class="mb-4">
+            <label class="block mb-2 font-semibold">Emoji:</label>
+            <input type="text" id="editExternalMealEmoji" 
+                   class="w-20 px-3 py-2 border rounded text-center text-2xl"
+                   maxlength="2"
+                   value="${type.emoji || '🍽️'}" />
+          </div>
+
+          <div class="mb-4">
+            <label class="block mb-2 font-semibold">Name:</label>
+            <input type="text" id="editExternalMealName" 
+                   class="w-full px-3 py-2 border rounded"
+                   value="${esc(type.name)}" />
+          </div>
+
+          <div class="flex gap-2 justify-end mt-6">
+            <button onclick="showManageExternalMealTypes()" class="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400">
+              Cancel
+            </button>
+            <button onclick="saveEditedExternalMealType(${idx})" 
+                    class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
+              Save
+            </button>
+          </div>
+        </div>
+      `);
+    }
+
+    async function saveEditedExternalMealType(idx) {
+      const nameInput = document.getElementById('editExternalMealName');
+      const emojiInput = document.getElementById('editExternalMealEmoji');
+      const newName = nameInput.value.trim();
+      const newEmoji = emojiInput.value.trim() || '🍽️';
+      
+      if (!newName) {
+        showError('Please enter a meal type name');
+        return;
+      }
+
+      state.externalMealTypes[idx] = { name: newName, emoji: newEmoji };
+      await saveExternalMealTypesConfig();
+      showManageExternalMealTypes();
+    }
+
+   async function removeExternalMealType(index) {
       if (!confirm('Delete this external meal type?')) return;
+      
+      // Convert old format if needed
+      state.externalMealTypes = state.externalMealTypes.map(t => 
+        typeof t === 'string' ? { name: t, emoji: '🍽️' } : t
+      );
       
       state.externalMealTypes.splice(index, 1);
       await saveExternalMealTypesConfig();
