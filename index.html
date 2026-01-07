@@ -4434,6 +4434,11 @@ if (state.recipePickerSearchTerm && !r.title.toLowerCase().includes(state.recipe
     }
 
     function showManageExternalMealTypes() {
+      // Convert old string format to new object format if needed
+      const types = state.externalMealTypes.map(t => 
+        typeof t === 'string' ? { name: t, emoji: '🍽️' } : t
+      );
+      
       openModal(`
         <div style="color: #1a1a2e;">
           <h2 class="text-2xl font-bold mb-4">Manage External Meal Types</h2>
@@ -4441,13 +4446,22 @@ if (state.recipePickerSearchTerm && !r.title.toLowerCase().includes(state.recipe
           <div class="mb-4">
             <label class="block mb-2 font-semibold">Current Types:</label>
             <div class="space-y-2">
-              ${state.externalMealTypes.map((type, idx) => `
+              ${types.map((type, idx) => `
                 <div class="flex items-center justify-between p-2 bg-gray-100 rounded">
-                  <span>${esc(type)}</span>
-                  <button onclick="removeExternalMealType(${idx})" 
-                          class="px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600">
-                    Delete
-                  </button>
+                  <div class="flex items-center gap-2">
+                    <span style="font-size: 1.5rem;">${type.emoji || '🍽️'}</span>
+                    <span>${esc(type.name)}</span>
+                  </div>
+                  <div class="flex gap-2">
+                    <button onclick="editExternalMealType(${idx})" 
+                            class="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600">
+                      Edit
+                    </button>
+                    <button onclick="removeExternalMealType(${idx})" 
+                            class="px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600">
+                      Delete
+                    </button>
+                  </div>
                 </div>
               `).join('')}
             </div>
