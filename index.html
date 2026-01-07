@@ -1397,6 +1397,44 @@ showToast(payload.isTip ? 'Tip saved!' : 'Recipe saved!', 'success');        clo
         render();
       }
     }
+   function addToMealOptions(recipeId) {
+      const recipe = getRecipeById(recipeId);
+      if (!recipe) {
+        showError('Recipe not found');
+        return;
+      }
+      
+      // Check if already in meal options
+      if (state.mealOptions.some(opt => opt.recipeId === recipeId)) {
+        showToast('Already in Meal Options!', 'info');
+        return;
+      }
+      
+      // Map recipe category to meal option category
+      const categoryMap = {
+        'Breakfast': 'Breakfast',
+        'Lunch': 'Lunch',
+        'Dinner': 'Dinner',
+        'Snack': 'Snack',
+        'Dessert': 'Dessert',
+        'Side Dish': 'Vegetables',
+        'Vegetables': 'Vegetables'
+      };
+      
+      const mealCategory = categoryMap[recipe.category] || 'Dinner';
+      
+      const newOption = {
+        id: `mealopt_${Date.now()}_${Math.random().toString(36).slice(2)}`,
+        recipeId: recipeId,
+        category: mealCategory
+      };
+      
+      state.mealOptions.push(newOption);
+      storage.create(newOption);
+      
+      showToast(`Added to ${mealCategory} options!`, 'success');
+      render();
+    }
 
  function markAsCooked(recipeId) {
       const recipe = getRecipeById(recipeId);
@@ -3595,7 +3633,12 @@ Step 3: Add wet ingredients..."
                 ← Back
               </button>
 
-            <div class="flex gap-2 flex-wrap">
+           <div class="flex gap-2 flex-wrap">
+             <button type="button" onclick="addToMealOptions('${r.__backendId || r.id}')"
+  class="px-4 py-2 rounded-xl button-hover"
+  style="background:${CONFIG.primary_action_color}; color:white;">
+  📋 Add to Meal Options
+</button>
              <button type="button" onclick="markAsCooked('${r.__backendId || r.id}')"
   class="px-4 py-2 rounded-xl button-hover"
   style="background:#16a34a; color:white;">
