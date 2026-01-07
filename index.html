@@ -2204,8 +2204,28 @@ function navigateTo(view) {
 
          <div class="space-y-3">
             ${categories.map(category => {
-              const options = state.mealOptions.filter(opt => opt.category === category);
-              
+const options = state.mealOptions.filter(opt => {
+                if (opt.category === category) return true;
+                // For options without category, look up the recipe and check its category
+                if (!opt.category) {
+                  const recipe = getRecipeById(opt.recipeId);
+                  if (recipe) {
+                    const categoryMap = {
+                      'Breakfast': 'Breakfast',
+                      'Lunch': 'Lunch', 
+                      'Dinner': 'Dinner',
+                      'Snack': 'Appetizer',
+                      'Dessert': 'Appetizer',
+                      'Side Dish': 'Vegetables',
+                      'Vegetables': 'Vegetables',
+                      'Appetizer': 'Appetizer'
+                    };
+                    const mappedCategory = categoryMap[recipe.category] || recipe.category || 'Dinner';
+                    return mappedCategory === category;
+                  }
+                }
+                return false;
+              });              
               return `
                 <div>
                  <div class="flex items-center gap-2 mb-1">
