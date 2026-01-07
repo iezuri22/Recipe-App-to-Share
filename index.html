@@ -1823,7 +1823,7 @@ function getPlannedMealsForWeek(weekStart) {
       })();
     }
 
-    async function toggleMealIngredient(ingredientKey) {
+  async function toggleMealIngredient(ingredientKey) {
       const selId = `mealSel_${state.selectedGroceryDate}_${state.selectedGroceryMeal}_${state.selectedGroceryRecipeId}`;
       let sel = state.mealSelections.find(s => s.id === selId);
 
@@ -1843,29 +1843,32 @@ function getPlannedMealsForWeek(weekStart) {
         includedKeys.push(ingredientKey);
       }
 
-      state.isLoading = true;
-      render();
-
-      try {
-        if (sel) {
-          const updatedSel = { ...sel, includedIngredientKeys: JSON.stringify(includedKeys) };
-          await storage.update(updatedSel);
-        } else {
-          if (state.mealSelections.length >= 999) {
-            showError('Maximum limit reached');
-            return;
-          }
+      // Optimistic update - update state immediately without full render
+      if (sel) {
+        sel.includedIngredientKeys = JSON.stringify(includedKeys);
+      } else {
         const newSel = {
-            id: selId,
-            mealDate: state.selectedGroceryDate,
-            meal: state.selectedGroceryMeal,
-            recipeId: state.selectedGroceryRecipeId,
-            includedIngredientKeys: JSON.stringify(includedKeys)
-          };
-          await storage.create(newSel);
+          id: selId,
+          mealDate: state.selectedGroceryDate,
+          meal: state.selectedGroceryMeal,
+          recipeId: state.selectedGroceryRecipeId,
+          includedIngredientKeys: JSON.stringify(includedKeys)
+        };
+        state.mealSelections.push(newSel);
+        sel = newSel;
+      }
+
+      // Update just the checkbox visually (no full render)
+      // Then save to database in background
+      try {
+        if (sel.id === selId && state.mealSelections.find(s => s.id === selId)) {
+          await storage.update(sel);
+        } else {
+          await storage.create(sel);
         }
-      } finally {
-        state.isLoading = false;
+      } catch (e) {
+        console.error('Failed to save ingredient toggle:', e);
+        showError('Failed to save');
         render();
       }
    }
@@ -2146,19 +2149,22 @@ function navigateTo(view) {
       }
     }
 
-    async function removeMealOption(optionId) {
+   async function removeMealOption(optionId) {
       const option = state.mealOptions.find(o => o.id === optionId);
       if (!option) return;
 
-      state.isLoading = true;
+      // Optimistic update - remove from UI immediately
+      state.mealOptions = state.mealOptions.filter(o => o.id !== optionId);
       render();
 
       try {
         await storage.delete(option);
         showToast('Removed from meal options', 'success');
-      } finally {
-        state.isLoading = false;
+      } catch (e) {
+        // If delete fails, add it back
+        state.mealOptions.push(option);
         render();
+        showError('Failed to remove');
       }
     }
 
