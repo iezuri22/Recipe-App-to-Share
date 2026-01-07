@@ -1397,7 +1397,7 @@ showToast(payload.isTip ? 'Tip saved!' : 'Recipe saved!', 'success');        clo
         render();
       }
     }
-   function addToMealOptions(recipeId) {
+   function addToMealOptions(recipeId, category) {
       const recipe = getRecipeById(recipeId);
       if (!recipe) {
         showError('Recipe not found');
@@ -1415,13 +1415,14 @@ showToast(payload.isTip ? 'Tip saved!' : 'Recipe saved!', 'success');        clo
         'Breakfast': 'Breakfast',
         'Lunch': 'Lunch',
         'Dinner': 'Dinner',
-        'Snack': 'Snack',
-        'Dessert': 'Dessert',
+        'Snack': 'Appetizer',
+        'Dessert': 'Appetizer',
         'Side Dish': 'Vegetables',
-        'Vegetables': 'Vegetables'
+        'Vegetables': 'Vegetables',
+        'Appetizer': 'Appetizer'
       };
       
-      const mealCategory = categoryMap[recipe.category] || 'Dinner';
+      const mealCategory = category || categoryMap[recipe.category] || 'Dinner';
       
       const newOption = {
         id: `mealopt_${Date.now()}_${Math.random().toString(36).slice(2)}`,
