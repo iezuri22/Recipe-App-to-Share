@@ -3971,6 +3971,11 @@ function showManageExpensesModal() {
     }
     
 function showBudgetModal() {
+      // Get current week's budget (per-week or default)
+      const weekExpenses = getWeekExpenses(state.currentWeekStartDate);
+      const currentGrocery = weekExpenses.groceryBudget;
+      const currentTakeout = weekExpenses.takeoutBudget;
+      
       openModal(`
         <div style="color: #1a1a2e;">
           <h2 class="text-2xl font-bold mb-4">💰 Set Weekly Budgets</h2>
@@ -3979,7 +3984,7 @@ function showBudgetModal() {
             <label class="block mb-2 font-semibold">🛒 Grocery Budget:</label>
             <div class="flex items-center gap-2">
               <span class="text-xl">$</span>
-              <input type="number" id="groceryBudgetAmount" value="${state.groceryBudget}" 
+              <input type="number" id="groceryBudgetAmount" value="${currentGrocery}" 
                      class="flex-1 px-3 py-2 border rounded" min="0" step="10" />
             </div>
           </div>
@@ -3988,7 +3993,7 @@ function showBudgetModal() {
             <label class="block mb-2 font-semibold">🍔 Takeout Budget:</label>
             <div class="flex items-center gap-2">
               <span class="text-xl">$</span>
-              <input type="number" id="takeoutBudgetAmount" value="${state.takeoutBudget}" 
+              <input type="number" id="takeoutBudgetAmount" value="${currentTakeout}" 
                      class="flex-1 px-3 py-2 border rounded" min="0" step="10" />
             </div>
           </div>
