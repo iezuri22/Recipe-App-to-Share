@@ -3476,8 +3476,30 @@ Step 3: Add wet ingredients..."
       });
       const groupOrder = Object.keys(grouped);
 
-      // Parse instructions into steps
-      const instructionSteps = instructions ? instructions.split('\n').filter(s => s.trim()) : [];
+    // Parse instructions into steps - group numbered steps with their sub-instructions
+      const instructionSteps = [];
+      if (instructions) {
+        const lines = instructions.split('\n');
+        let currentStep = null;
+        
+        lines.forEach(line => {
+          const trimmed = line.trim();
+          if (!trimmed) return;
+          
+          // Check if line starts with a number (e.g., "1.", "2.", etc.)
+          if (/^\d+[\.\)]\s*/.test(trimmed)) {
+            if (currentStep) instructionSteps.push(currentStep);
+            currentStep = { header: trimmed, details: [] };
+          } else if (currentStep) {
+            currentStep.details.push(trimmed);
+          } else {
+            // Line without a number and no current step - treat as standalone
+            instructionSteps.push({ header: null, details: [trimmed] });
+          }
+        });
+        
+        if (currentStep) instructionSteps.push(currentStep);
+      }
 
       // Debug: Log image URL
       console.log('Recipe image URL:', img);
@@ -3585,13 +3607,19 @@ ${r.isTip ? `<div style="color:#667eea; font-weight:600; margin-top:8px;">📝 T
             <div class="mt-6">
               <div class="font-semibold mb-2" style="color:${CONFIG.text_color};">Step-by-step Instructions</div>
               ${instructionSteps.length ? `
-              <ol class="space-y-3" style="color:${CONFIG.text_color}; opacity:.9; list-style: none;">
-                  ${instructionSteps.map((step, idx) => `
-                    <li style="padding-left: 4rem; position: relative;">
-                      <span style="position: absolute; left: 0; font-weight: 600; color: ${CONFIG.primary_action_color}; white-space: nowrap;">
-                        Step ${idx + 1}:
-                      </span>
-                      ${esc(step)}
+              <ol class="space-y-4" style="color:${CONFIG.text_color}; opacity:.9; list-style: none;">
+                  ${instructionSteps.map((step) => `
+                    <li style="padding: 12px; background: rgba(255,255,255,0.03); border-radius: 8px; border-left: 3px solid ${CONFIG.primary_action_color};">
+                      ${step.header ? `
+                        <div style="font-weight: 600; color: ${CONFIG.primary_action_color}; margin-bottom: 4px;">
+                          ${esc(step.header)}
+                        </div>
+                      ` : ''}
+                      ${step.details.map(d => `
+                        <div style="padding-left: ${step.header ? '12px' : '0'}; color: ${CONFIG.text_color};">
+                          ${esc(d)}
+                        </div>
+                      `).join('')}
                     </li>
                   `).join('')}
                 </ol>` : `
