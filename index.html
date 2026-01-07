@@ -1913,32 +1913,41 @@ function getPlannedMealsForWeek(weekStart) {
    async function toggleGroceryItem(ingredientKey) {
       let item = state.groceryItems.find(gi => gi.ingredientKey === ingredientKey);
 
-      state.isLoading = true;
+      // Optimistic update - toggle immediately
+      if (item) {
+        item.checked = !item.checked;
+      } else {
+        if (state.groceryItems.length >= 999) {
+          showError('Maximum limit reached');
+          return;
+        }
+        item = {
+          id: `grocery_${Date.now()}_${ingredientKey}`,
+          ingredientKey: ingredientKey,
+          checked: true
+        };
+        state.groceryItems.push(item);
+      }
+      
       render();
 
+      // Save to database in background
       try {
-        if (item) {
-          const updatedItem = { ...item, checked: !item.checked };
-          await storage.update(updatedItem);
-        } else {
-          if (state.groceryItems.length >= 999) {
-            showError('Maximum limit reached');
-            return;
+        if (item.id.startsWith('grocery_')) {
+          const existing = state.groceryItems.find(gi => gi.id === item.id && gi.ingredientKey === ingredientKey);
+          if (existing) {
+            await storage.update(item);
+          } else {
+            await storage.create(item);
           }
-          const newItem = {
-            id: `grocery_${Date.now()}_${ingredientKey}`,
-            ingredientKey: ingredientKey,
-            checked: true
-          };
-          await storage.create(newItem);
         }
-      } finally {
-        state.isLoading = false;
-        render();
+      } catch (e) {
+        console.error('Failed to save grocery toggle:', e);
       }
     }
 
-    async function removeFromGroceryList(ingredientKey) {
+   async function removeFromGroceryList(ingredientKey) {
+      // Optimistic update - remove from UI immediately
       const selectionsWithIngredient = state.mealSelections.filter(sel => {
         try {
           const keys = JSON.parse(sel.includedIngredientKeys || '[]');
@@ -1948,26 +1957,30 @@ function getPlannedMealsForWeek(weekStart) {
         }
       });
 
-      state.isLoading = true;
+      // Update state immediately
+      for (const sel of selectionsWithIngredient) {
+        let keys = JSON.parse(sel.includedIngredientKeys || '[]');
+        keys = keys.filter(k => k !== ingredientKey);
+        sel.includedIngredientKeys = JSON.stringify(keys);
+      }
+      
+      state.groceryItems = state.groceryItems.filter(gi => gi.ingredientKey !== ingredientKey);
+      
       render();
+      showToast('Ingredient removed from grocery list', 'success');
 
+      // Save to database in background
       try {
         for (const sel of selectionsWithIngredient) {
-          let keys = JSON.parse(sel.includedIngredientKeys || '[]');
-          keys = keys.filter(k => k !== ingredientKey);
-          const updatedSel = { ...sel, includedIngredientKeys: JSON.stringify(keys) };
-          await storage.update(updatedSel);
+          await storage.update(sel);
         }
 
         const item = state.groceryItems.find(gi => gi.ingredientKey === ingredientKey);
         if (item) {
           await storage.delete(item);
         }
-
-        showToast('Ingredient removed from grocery list', 'success');
-      } finally {
-        state.isLoading = false;
-        render();
+      } catch (e) {
+        console.error('Failed to remove from grocery list:', e);
       }
     }
 
