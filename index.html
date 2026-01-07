@@ -1910,7 +1910,7 @@ function getPlannedMealsForWeek(weekStart) {
       }
     }
 
-   async function toggleGroceryItem(ingredientKey) {
+  async function toggleGroceryItem(ingredientKey) {
       let item = state.groceryItems.find(gi => gi.ingredientKey === ingredientKey);
       let isNew = false;
 
@@ -1931,6 +1931,8 @@ function getPlannedMealsForWeek(weekStart) {
         isNew = true;
       }
       
+      // Block real-time updates briefly
+      state.ignoreRealtimeUntil = Date.now() + 2000;
       render();
 
       // Save to database in background
@@ -2014,6 +2016,12 @@ function getPlannedMealsForWeek(weekStart) {
 // ===== DATA HANDLER =====
     const dataHandler = {
       onDataChanged(data) {
+        // Skip if we're in the middle of an optimistic update
+        if (state.ignoreRealtimeUntil && Date.now() < state.ignoreRealtimeUntil) {
+          console.log('Skipping realtime update during optimistic period');
+          return;
+        }
+        
         state.recipes = data.filter(d => d.id && d.id.startsWith('recipe_'));
         let planData = data.filter(d => d.date && d.id && d.id.startsWith('plan_'));
         
